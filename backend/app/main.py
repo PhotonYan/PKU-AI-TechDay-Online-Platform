@@ -33,15 +33,12 @@ app.include_router(admin.router)
 app.mount("/uploads", StaticFiles(directory=settings.upload_dir), name="uploads")
 
 
-def ensure_vote_counter_column(db):
+def ensure_column(db, table: str, column: str, column_def: str):
     inspector = inspect(engine)
-    columns = {col["name"] for col in inspector.get_columns("users")}
-    if "vote_counter_opt_in" in columns:
+    columns = {col["name"] for col in inspector.get_columns(table)}
+    if column in columns:
         return
-    if engine.dialect.name == "sqlite":
-        db.execute(text("ALTER TABLE users ADD COLUMN vote_counter_opt_in BOOLEAN DEFAULT 0"))
-    else:
-        db.execute(text("ALTER TABLE users ADD COLUMN vote_counter_opt_in BOOLEAN DEFAULT FALSE"))
+    db.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {column_def}"))
     db.commit()
 
 
@@ -50,7 +47,11 @@ def startup_event():
     Base.metadata.create_all(bind=engine)
     db = SessionLocal()
     try:
-        ensure_vote_counter_column(db)
+        dialect = engine.dialect.name
+        bool_def = "BOOLEAN DEFAULT 0" if dialect == "sqlite" else "BOOLEAN DEFAULT FALSE"
+        ensure_column(db, "users", "vote_counter_opt_in", bool_def)
+        ensure_column(db, "users", "student_id", "VARCHAR")
+        ensure_column(db, "papers", "sequence_no", "INTEGER")
         admin_user = db.query(models.User).filter(models.User.email == settings.admin_email).first()
         if not admin_user:
             admin_user = models.User(

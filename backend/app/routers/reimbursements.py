@@ -1,6 +1,6 @@
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, Response
 from sqlalchemy.orm import Session
 
 from .. import models, schemas
@@ -8,6 +8,24 @@ from ..dependencies import get_current_user, get_db, require_admin
 from ..utils.files import save_upload_file
 
 router = APIRouter(prefix="/api/reimbursements", tags=["reimbursements"])
+
+STATUS_LABELS = {
+    models.ReimbursementStatus.pending.value: "待审核",
+    models.ReimbursementStatus.approved.value: "已通过",
+    models.ReimbursementStatus.rejected.value: "已拒绝",
+    models.ReimbursementStatus.waiting_more.value: "等待补充材料",
+}
+
+
+def _allowed_organizations(user: models.User) -> list[str]:
+    tracks = user.volunteer_tracks.split(",") if user.volunteer_tracks else []
+    if not tracks and user.organization:
+        tracks = [user.organization.name]
+    return [name for name in tracks if name]
+
+
+def _csv_escape(value: str) -> str:
+    return '"' + value.replace('"', '""') + '"'
 
 
 @router.get("", response_model=List[schemas.ReimbursementResponse])
@@ -76,12 +94,16 @@ def create_reimbursement(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
+    allowed = _allowed_organizations(current_user)
+    if allowed and organization not in allowed:
+        raise HTTPException(status_code=400, detail="组织不在允许范围内")
+    organization_name = organization if allowed else (current_user.organization.name if current_user.organization else organization)
     reimbursement = _persist_reimbursement(
         db,
         reimbursement=None,
         applicant_id=current_user.id,
         project_name=project_name,
-        organization=organization,
+        organization=organization_name,
         content=content,
         amount=amount,
         invoice_company=invoice_company,
@@ -130,12 +152,16 @@ def update_reimbursement(
         raise HTTPException(status_code=404, detail="Reimbursement not found")
     if reimbursement.status == models.ReimbursementStatus.approved:
         raise HTTPException(status_code=400, detail="Approved reimbursements cannot be edited")
+    allowed = _allowed_organizations(current_user)
+    if allowed and organization not in allowed:
+        raise HTTPException(status_code=400, detail="组织不在允许范围内")
+    organization_name = organization if allowed else (current_user.organization.name if current_user.organization else reimbursement.organization)
     reimbursement = _persist_reimbursement(
         db,
         reimbursement=reimbursement,
         applicant_id=current_user.id,
         project_name=project_name,
-        organization=organization,
+        organization=organization_name,
         content=content,
         amount=amount,
         invoice_company=invoice_company,
@@ -168,11 +194,10 @@ def delete_reimbursement(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    reimbursement = (
-        db.query(models.Reimbursement)
-        .filter(models.Reimbursement.id == reimbursement_id, models.Reimbursement.applicant_id == current_user.id)
-        .first()
-    )
+    query = db.query(models.Reimbursement).filter(models.Reimbursement.id == reimbursement_id)
+    if current_user.role != models.UserRole.admin:
+        query = query.filter(models.Reimbursement.applicant_id == current_user.id)
+    reimbursement = query.first()
     if not reimbursement:
         raise HTTPException(status_code=404, detail="Reimbursement not found")
     if reimbursement.status == models.ReimbursementStatus.approved:
@@ -211,4 +236,37 @@ def review_reimbursement(
         applicant_name=reimbursement.applicant.name if reimbursement.applicant else None,
         created_at=reimbursement.created_at,
         updated_at=reimbursement.updated_at,
+    )
+
+
+@router.get("/export/csv")
+def export_reimbursements_csv(
+    db: Session = Depends(get_db),
+    admin: models.User = Depends(require_admin),
+):
+    reimbursements = (
+        db.query(models.Reimbursement)
+        .order_by(models.Reimbursement.created_at.desc())
+        .all()
+    )
+    header = ["项目名称", "组织", "金额", "发票抬头公司", "报销内容", "数量", "状态"]
+    lines = [",".join(header)]
+    for item in reimbursements:
+        status_key = item.status.value if hasattr(item.status, "value") else str(item.status)
+        status_text = STATUS_LABELS.get(status_key, status_key)
+        row = [
+            item.project_name,
+            item.organization,
+            f"{item.amount}",
+            item.invoice_company,
+            item.content.replace("\n", " "),
+            str(item.quantity or ""),
+            status_text,
+        ]
+        lines.append(",".join(_csv_escape(str(value)) for value in row))
+    csv_content = "\n".join(lines)
+    return Response(
+        content=csv_content,
+        media_type="text/csv",
+        headers={"Content-Disposition": 'attachment; filename="reimbursements.csv"'},
     )

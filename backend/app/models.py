@@ -58,6 +58,7 @@ class User(Base):
     name = Column(String, nullable=False)
     college = Column(String, nullable=True)
     grade = Column(String, nullable=True)
+    student_id = Column(String, nullable=True, unique=True)
     volunteer_tracks = Column(String, nullable=True)
     availability_slots = Column(Text, nullable=True)
     role = Column(Enum(UserRole), default=UserRole.volunteer, index=True)
@@ -95,6 +96,7 @@ class Paper(Base):
     __tablename__ = "papers"
 
     id = Column(Integer, primary_key=True, index=True)
+    sequence_no = Column(Integer, nullable=True, index=True)
     title = Column(String, nullable=False)
     author = Column(String, nullable=False)
     abstract = Column(Text, nullable=False)
@@ -117,6 +119,7 @@ class PaperVoteLog(Base):
     old_value = Column(Float, nullable=True)
     new_value = Column(Float, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
+    user = relationship("User")
     user = relationship("User")
 
 

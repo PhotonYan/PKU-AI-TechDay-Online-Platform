@@ -34,6 +34,7 @@ const VolunteerProfilePage = () => {
             ["邮箱", profile.email],
             ["学院", profile.college],
             ["界别", profile.grade],
+            ["学号", profile.student_id],
             ["志愿方向", (profile.volunteer_tracks || []).join("、")],
             ["可服务时段", (profile.availability_slots || []).join("、")],
             ["组织", (profile.volunteer_tracks || []).join("、") || "待分配"],

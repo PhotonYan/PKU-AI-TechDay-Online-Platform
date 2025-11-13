@@ -29,6 +29,7 @@ def list_papers(
     for paper in papers:
         item = {
             "id": paper.id,
+            "sequence_no": paper.sequence_no,
             "title": paper.title,
             "author": paper.author,
             "direction": paper.direction,
@@ -61,6 +62,7 @@ def get_paper(paper_id: int, db: Session = Depends(get_db)):
     )
     payload = {
         "id": paper.id,
+        "sequence_no": paper.sequence_no,
         "title": paper.title,
         "author": paper.author,
         "abstract": paper.abstract,
@@ -99,12 +101,18 @@ def import_papers(
 ):
     content = file.file.read().decode("utf-8")
     reader = csv.DictReader(io.StringIO(content))
-    required_fields = {"Title", "Author", "Abstract", "期刊/会议", "方向", "作者联系方式"}
+    required_fields = {"序号", "Title", "Author", "Abstract", "期刊/会议", "方向", "作者联系方式"}
     if not required_fields.issubset(reader.fieldnames or {}):
         raise HTTPException(status_code=400, detail="CSV headers missing")
     created_count = 0
     for row in reader:
+        sequence = row.get("序号")
+        try:
+            sequence_no = int(sequence) if sequence is not None and sequence != "" else None
+        except ValueError:
+            sequence_no = None
         paper = models.Paper(
+            sequence_no=sequence_no,
             title=row["Title"],
             author=row["Author"],
             abstract=row["Abstract"],

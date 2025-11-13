@@ -18,6 +18,7 @@ const VolunteerRegisterPage = () => {
     password: "",
     college: "",
     grade: "",
+    student_id: "",
   });
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [selectedOrgNames, setSelectedOrgNames] = useState<string[]>([]);
@@ -77,6 +78,7 @@ const VolunteerRegisterPage = () => {
           { key: "password", label: "密码", type: "password" },
           { key: "college", label: "学院" },
           { key: "grade", label: "界别" },
+          { key: "student_id", label: "学号" },
         ].map((field) => (
           <div key={field.key}>
             <label className="block text-sm font-medium">{field.label}</label>

@@ -43,6 +43,7 @@ def user_to_response(user: models.User, db: Session) -> schemas.UserResponse:
         name=user.name,
         college=user.college,
         grade=user.grade,
+        student_id=user.student_id,
         volunteer_tracks=track_list or None,
         availability_slots=user.availability_slots.split(",") if user.availability_slots else None,
         role=user.role,

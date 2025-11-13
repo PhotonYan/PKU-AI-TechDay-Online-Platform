@@ -5,6 +5,7 @@ import { useAuth } from "../context/AuthContext";
 
 interface PaperListItem {
   id: number;
+  sequence_no?: number;
   title: string;
   author: string;
   direction: string;
@@ -106,27 +107,32 @@ const PaperListPage = () => {
       {message && <div className="mb-3 text-sm text-blue-600">{message}</div>}
       <div className="bg-white shadow rounded divide-y">
         {papers.map((paper) => (
-          <div key={paper.id} className="px-4 py-3 hover:bg-slate-50 space-y-2">
-            <div className="flex items-center justify-between">
-              <div>
+          <div key={paper.id} className="px-4 py-3 hover:bg-slate-50">
+            <div className="flex flex-col md:flex-row md:items-center md:space-x-4">
+              <div className="flex items-center justify-center w-12 font-semibold text-lg text-slate-700">
+                {paper.sequence_no ?? "-"}
+              </div>
+              <div className="flex-1 space-y-1">
                 <Link to={`/papers/${paper.id}`} className="font-semibold text-blue-700 hover:underline">
                   {paper.title}
                 </Link>
                 <div className="text-sm text-slate-600">{paper.author}</div>
                 <div className="text-sm text-slate-500">方向：{paper.direction}</div>
               </div>
+              {showVotes && (
+                <div className="mt-2 md:mt-0 flex flex-col items-end text-sm text-slate-600">
+                  {voteFields.map((field) => (
+                    <div key={field.key}>
+                      {field.label}: {(paper as any)[field.key] ?? "-"}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
             {showVotes && (
               <>
-                <div className="text-xs text-slate-500">
-                  {voteFields.map((field) => (
-                    <span key={field.key} className="mr-4">
-                      {field.label}: {(paper as any)[field.key] ?? "-"}
-                    </span>
-                  ))}
-                </div>
                 {canEditVotes && (
-                <form className="flex items-center gap-2 text-xs" onSubmit={(e) => submitVotes(paper, e)}>
+                <form className="flex items-center gap-2 text-xs justify-end" onSubmit={(e) => submitVotes(paper, e)}>
                   <input
                     className="border rounded px-2 py-1 text-sm w-40"
                     placeholder="创/欢/不"

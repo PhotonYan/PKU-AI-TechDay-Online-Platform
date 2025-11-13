@@ -169,6 +169,22 @@ const AdminSettingsPage = () => {
     alert("CSV 导入成功");
   };
 
+  const exportUsers = async () => {
+    if (!token) return;
+    const res = await fetch(`${apiClient.baseURL}/api/admin/users/export`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "users.csv";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="grid gap-6">
       <section className="bg-white p-6 rounded shadow">
@@ -207,9 +223,18 @@ const AdminSettingsPage = () => {
               ))}
             </select>
           </label>
-          <button className="bg-blue-600 text-white px-4 py-2 rounded" onClick={saveSettings}>
-            保存设置
-          </button>
+          <div className="flex justify-end">
+            <button
+              className="bg-red-500 text-white px-3 py-3 rounded text-xs"
+              onClick={() => {
+                if (confirm("确认更新列表展示设置？")) {
+                  saveSettings();
+                }
+              }}
+            >
+              保存
+            </button>
+          </div>
         </div>
       </section>
 
@@ -220,7 +245,7 @@ const AdminSettingsPage = () => {
 
       <section className="bg-white p-6 rounded shadow">
         <h2 className="text-lg font-semibold mb-3">组织管理</h2>
-        <form className="grid gap-3 md:grid-cols-2" onSubmit={submitOrg}>
+        <form className="grid gap-3 md:grid-cols-[0.7fr,2fr,1fr]" onSubmit={submitOrg}>
           <input
             className="border rounded px-3 py-2"
             placeholder="组织名称"
@@ -283,6 +308,9 @@ const AdminSettingsPage = () => {
             <input type="checkbox" checked={showOrgEditor} onChange={(e) => setShowOrgEditor(e.target.checked)} />
             显示工作组多选按钮
           </label>
+          <button className="px-3 py-1 border rounded text-xs" type="button" onClick={exportUsers}>
+            导出当前人员
+          </button>
         </div>
         <table className="min-w-full text-sm table-fixed">
           <thead>
@@ -293,7 +321,7 @@ const AdminSettingsPage = () => {
                 </th>
               ))}
             </tr>
-            <tr className="text-xs text-slate-500">
+            {/* <tr className="text-xs text-slate-500">
               <th className="px-2" />
               <th className="px-2" />
               <th className="px-2">
@@ -338,7 +366,7 @@ const AdminSettingsPage = () => {
               </th>
               <th className="px-2" />
               <th className="px-2" />
-            </tr>
+            </tr> */}
           </thead>
           <tbody>
             {filteredUsers.map((u) => (

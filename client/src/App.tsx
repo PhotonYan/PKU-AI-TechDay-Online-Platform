@@ -27,7 +27,7 @@ const App = () => {
         <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
           <nav className="space-x-4 text-sm font-medium">
             <Link to="/">成果展示</Link>
-            <Link to="/reimbursements">报销管理</Link>
+            {user && <Link to="/reimbursements">报销管理</Link>}
             {user?.role === "admin" && <Link to="/admin/settings">后台管理</Link>}
           </nav>
           <div className="text-sm">

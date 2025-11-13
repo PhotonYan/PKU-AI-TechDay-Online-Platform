@@ -27,6 +27,7 @@ class UserBase(BaseModel):
     name: str
     college: Optional[str] = None
     grade: Optional[str] = None
+    student_id: Optional[str] = None
     volunteer_tracks: Optional[List[str]] = None
     availability_slots: Optional[List[str]] = None
     role: UserRole = UserRole.volunteer
@@ -44,6 +45,7 @@ class UserCreate(BaseModel):
     password: str
     college: str
     grade: str
+    student_id: Optional[str] = None
     volunteer_tracks: List[str]
     availability_slots: List[str]
     vote_counter_opt_in: bool = False

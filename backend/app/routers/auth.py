@@ -27,6 +27,7 @@ def register_user(payload: schemas.UserCreate, db: Session = Depends(get_db)):
         password_hash=get_password_hash(payload.password),
         college=payload.college,
         grade=payload.grade,
+        student_id=payload.student_id,
         volunteer_tracks=",".join(payload.volunteer_tracks),
         availability_slots=",".join(payload.availability_slots),
         role=models.UserRole.volunteer,

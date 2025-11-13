@@ -1,4 +1,4 @@
-import { FormEvent, Fragment, useEffect, useState } from "react";
+import { FormEvent, Fragment, useEffect, useMemo, useState } from "react";
 import { apiClient } from "../api/client";
 import { useAuth } from "../context/AuthContext";
 
@@ -54,6 +54,28 @@ const ReimbursementPage = () => {
   const [feedback, setFeedback] = useState<Feedback>(null);
   const [reviewingId, setReviewingId] = useState<number | null>(null);
   const [expandedId, setExpandedId] = useState<number | null>(null);
+  const baseOrgOptions = useMemo(() => {
+    if (!user) return [];
+    if (user.organizations_detail?.length) {
+      return user.organizations_detail.map((org) => org.name);
+    }
+    if (user.volunteer_tracks && user.volunteer_tracks.length > 0) {
+      return user.volunteer_tracks;
+    }
+    if (user.organization) {
+      return [user.organization];
+    }
+    return [];
+  }, [user]);
+  const orgOptionList = baseOrgOptions.length > 0 ? baseOrgOptions : ["未分配组织"];
+  const orgOptionsKey = orgOptionList.join("|");
+
+  const renderedOrgOptions = useMemo(() => {
+    if (form.organization && !orgOptionList.includes(form.organization)) {
+      return [...orgOptionList, form.organization];
+    }
+    return orgOptionList;
+  }, [orgOptionsKey, form.organization]);
 
   const loadData = () => {
     if (!token) return;
@@ -66,8 +88,24 @@ const ReimbursementPage = () => {
     loadData();
   }, [token]);
 
+  useEffect(() => {
+    if (!editingId) {
+      setForm((prev) => ({
+        ...prev,
+        organization: orgOptionList[0] || prev.organization || "",
+      }));
+    }
+  }, [orgOptionsKey, editingId]);
+
   const resetForm = () => {
-    setForm({ project_name: "", organization: "", content: "", quantity: "", amount: "", invoice_company: "" });
+    setForm({
+      project_name: "",
+      organization: orgOptionList[0] || "",
+      content: "",
+      quantity: "",
+      amount: "",
+      invoice_company: "",
+    });
     setFile(null);
     setEditingId(null);
   };
@@ -141,6 +179,22 @@ const ReimbursementPage = () => {
     }
   };
 
+  const exportReimbursements = async () => {
+    if (!token) return;
+    const res = await fetch(`${apiClient.baseURL}/api/reimbursements/export/csv`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "reimbursements.csv";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="grid gap-6">
       {feedback && (
@@ -163,13 +217,27 @@ const ReimbursementPage = () => {
           ].map((field) => (
             <div key={field.key}>
               <label className="block text-sm font-medium">{field.label}</label>
-              <input
-                type={field.type || "text"}
-                className="mt-1 w-full border rounded px-3 py-2"
-                value={(form as any)[field.key]}
-                required
-                onChange={(e) => setForm({ ...form, [field.key]: e.target.value })}
-              />
+              {field.key === "organization" ? (
+                <select
+                  className="mt-1 w-full border rounded px-3 py-2"
+                  value={form.organization}
+                  onChange={(e) => setForm({ ...form, organization: e.target.value })}
+                >
+                  {renderedOrgOptions.map((org) => (
+                    <option key={org} value={org}>
+                      {org}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  type={field.type || "text"}
+                  className="mt-1 w-full border rounded px-3 py-2"
+                  value={(form as any)[field.key]}
+                  required
+                  onChange={(e) => setForm({ ...form, [field.key]: e.target.value })}
+                />
+              )}
             </div>
           ))}
           <div className="md:col-span-2">
@@ -208,7 +276,14 @@ const ReimbursementPage = () => {
       </div>
 
       <div className="bg-white p-6 rounded shadow">
-        <h2 className="text-lg font-semibold mb-4">我的报销</h2>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold">我的报销</h2>
+          {user?.role === "admin" && (
+            <button className="px-3 py-2 border rounded text-sm" onClick={exportReimbursements}>
+              导出报销
+            </button>
+          )}
+        </div>
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
             <thead>
@@ -248,19 +323,19 @@ const ReimbursementPage = () => {
                       )}
                     </td>
                     <td className="space-x-2" onClick={(e) => e.stopPropagation()}>
-                      {item.status !== "approved" && user?.role !== "admin" && (
-                        <>
-                          <button className="text-blue-600" onClick={() => editItem(item)}>
-                            编辑
+                    {user?.role !== "admin" && item.status !== "approved" && (
+                      <>
+                        <button className="text-blue-600" onClick={() => editItem(item)}>
+                          编辑
                           </button>
                           <button className="text-red-600" onClick={() => deleteItem(item.id)}>
                             删除
                           </button>
                         </>
                       )}
-                      {user?.role === "admin" && (
-                        <div className="flex flex-col space-y-1">
-                          {item.status === "pending" ? (
+                    {user?.role === "admin" && (
+                      <div className="flex flex-col space-y-1">
+                        {item.status === "pending" ? (
                             reviewOptions.map(([key, label]) => (
                             <button
                               key={key}
@@ -295,6 +370,14 @@ const ReimbursementPage = () => {
                               修改
                             </button>
                           )}
+                          <button
+                            className="text-xs border rounded px-2 text-red-600"
+                            onClick={() => {
+                              if (confirm("确认删除该报销记录？")) deleteItem(item.id);
+                            }}
+                          >
+                            删除
+                          </button>
                         </div>
                       )}
                     </td>

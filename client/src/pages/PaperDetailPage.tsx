@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { apiClient } from "../api/client";
+import { useAuth } from "../context/AuthContext";
 
 interface VoteLog {
   id: number;
@@ -13,6 +14,7 @@ interface VoteLog {
 
 interface PaperDetail {
   id: number;
+  sequence_no?: number;
   title: string;
   author: string;
   abstract: string;
@@ -35,6 +37,8 @@ const fieldLabels: Record<string, string> = {
 const PaperDetailPage = () => {
   const { id } = useParams();
   const [paper, setPaper] = useState<PaperDetail | null>(null);
+  const { user } = useAuth();
+  const canViewLogs = Boolean(user && (user.role === "admin" || user.role_template_can_edit_vote));
 
   useEffect(() => {
     if (!id) return;
@@ -46,6 +50,10 @@ const PaperDetailPage = () => {
   return (
     <div className="bg-white p-6 rounded shadow space-y-4">
       <div>
+        <div className="flex items-center gap-3 text-slate-500 text-sm">
+          <div className="font-bold text-lg text-slate-700">{paper.sequence_no ?? "-"}</div>
+          <div>编号</div>
+        </div>
         <h1 className="text-2xl font-semibold mb-2">{paper.title}</h1>
         <div className="text-sm text-slate-600">
           作者：{paper.author} · 方向：{paper.direction}
@@ -79,25 +87,27 @@ const PaperDetailPage = () => {
           ))}
         </div>
       )}
-      <div>
-        <h2 className="font-semibold mb-2">修改历史</h2>
-        <div className="space-y-2 text-sm">
-          {paper.logs && paper.logs.length > 0 ? (
-            paper.logs.map((log) => (
-              <div key={log.id} className="border rounded px-3 py-2 bg-slate-50">
-                <div className="text-xs text-slate-500">
-                  {new Date(log.created_at).toLocaleString()} · {log.user_name || "未知用户"}
+      {canViewLogs && (
+        <div>
+          <h2 className="font-semibold mb-2">修改历史</h2>
+          <div className="space-y-2 text-sm">
+            {paper.logs && paper.logs.length > 0 ? (
+              paper.logs.map((log) => (
+                <div key={log.id} className="border rounded px-3 py-2 bg-slate-50">
+                  <div className="text-xs text-slate-500">
+                    {new Date(log.created_at).toLocaleString()} · {log.user_name || "未知用户"}
+                  </div>
+                  <div>
+                    {fieldLabels[log.field_name] || log.field_name}: {log.old_value ?? "-"} → {log.new_value ?? "-"}
+                  </div>
                 </div>
-                <div>
-                  {fieldLabels[log.field_name] || log.field_name}: {log.old_value ?? "-"} → {log.new_value ?? "-"}
-                </div>
-              </div>
-            ))
-          ) : (
-            <div className="text-slate-500 text-sm">暂无修改记录</div>
-          )}
+              ))
+            ) : (
+              <div className="text-slate-500 text-sm">暂无修改记录</div>
+            )}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 };

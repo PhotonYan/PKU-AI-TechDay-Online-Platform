@@ -1,6 +1,6 @@
 from typing import List
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.orm import Session
 
 from .. import models, schemas
@@ -95,6 +95,26 @@ def delete_user(
     db.delete(user)
     db.commit()
     return {"status": "deleted"}
+
+
+@router.get("/users/export")
+def export_users(db: Session = Depends(get_db), admin: models.User = Depends(require_admin)):
+    users = db.query(models.User).all()
+    lines = [
+        "id,email,name,role,student_id,volunteer_tracks,role_template_id,vote_counter_opt_in,availability_slots"
+    ]
+    for user in users:
+        tracks = user.volunteer_tracks or ""
+        lines.append(
+            f'{user.id},"{user.email}","{user.name}",{user.role.value},"{user.student_id or ""}",'
+            f'"{tracks}",{user.role_template_id or ""},{int(bool(user.vote_counter_opt_in))},"{user.availability_slots or ""}"'
+        )
+    csv_content = "\n".join(lines)
+    return Response(
+        content=csv_content,
+        media_type="text/csv",
+        headers={"Content-Disposition": 'attachment; filename="users.csv"'},
+    )
 
 
 @router.get("/organizations", response_model=List[schemas.OrganizationResponse])
