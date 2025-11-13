@@ -28,14 +28,14 @@ const App = () => {
           <nav className="space-x-4 text-sm font-medium">
             <Link to="/">成果展示</Link>
             <Link to="/reimbursements">报销管理</Link>
-            <Link to="/volunteer/register">志愿者报名</Link>
-            <Link to="/volunteer/profile">我的信息</Link>
             {user?.role === "admin" && <Link to="/admin/settings">后台管理</Link>}
           </nav>
           <div className="text-sm">
             {user ? (
               <div className="flex items-center space-x-3">
-                <span>{user.name} ({user.role})</span>
+                <Link to="/volunteer/profile" className="text-slate-800 font-medium">
+                  {user.name}（{user.role}）
+                </Link>
                 <button className="text-blue-600" onClick={logout}>
                   退出
                 </button>

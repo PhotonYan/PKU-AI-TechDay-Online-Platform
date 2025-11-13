@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
@@ -5,6 +7,8 @@ from sqlalchemy.orm import Session
 from . import models
 from .auth import decode_token
 from .database import SessionLocal
+
+logger = logging.getLogger("techday.auth")
 
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
@@ -25,13 +29,18 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     )
     try:
         payload = decode_token(token)
-        user_id: int = payload.get("sub")
+        user_id = payload.get("sub")
         if user_id is None:
+            logger.warning("JWT payload missing 'sub'")
             raise credentials_exception
+        user_id = int(user_id)
+        logger.debug("Decoded JWT for user_id=%s", user_id)
     except Exception as exc:  # noqa: BLE001
+        logger.warning("Failed to decode JWT: %s", exc)
         raise credentials_exception from exc
     user = db.query(models.User).filter(models.User.id == user_id).first()
     if user is None:
+        logger.warning("User not found for user_id=%s from JWT", user_id)
         raise credentials_exception
     return user
 

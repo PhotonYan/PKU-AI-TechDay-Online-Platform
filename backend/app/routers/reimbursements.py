@@ -72,7 +72,7 @@ def create_reimbursement(
     amount: float = Form(...),
     invoice_company: str = Form(...),
     quantity: Optional[int] = Form(None),
-    file: UploadFile | None = File(None),
+    file: Optional[UploadFile] = File(None),
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
@@ -117,7 +117,7 @@ def update_reimbursement(
     amount: float = Form(...),
     invoice_company: str = Form(...),
     quantity: Optional[int] = Form(None),
-    file: UploadFile | None = File(None),
+    file: Optional[UploadFile] = File(None),
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):

@@ -61,6 +61,7 @@ class User(Base):
     volunteer_tracks = Column(String, nullable=True)
     availability_slots = Column(Text, nullable=True)
     role = Column(Enum(UserRole), default=UserRole.volunteer, index=True)
+    vote_counter_opt_in = Column(Boolean, default=False)
     organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=True)
     role_template_id = Column(Integer, ForeignKey("role_templates.id"), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -116,6 +117,7 @@ class PaperVoteLog(Base):
     old_value = Column(Float, nullable=True)
     new_value = Column(Float, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
+    user = relationship("User")
 
 
 class SiteSettings(Base):

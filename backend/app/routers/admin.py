@@ -12,18 +12,23 @@ router = APIRouter(prefix="/api/admin", tags=["admin"])
 @router.get("/users")
 def list_users(db: Session = Depends(get_db), admin: models.User = Depends(require_admin)):
     users = db.query(models.User).all()
-    return [
-        {
-            "id": user.id,
-            "email": user.email,
-            "name": user.name,
-            "role": user.role,
-            "organization": user.organization.name if user.organization else None,
-            "organization_id": user.organization_id,
-            "role_template_id": user.role_template_id,
-        }
-        for user in users
-    ]
+    result = []
+    for user in users:
+        tracks = user.volunteer_tracks.split(",") if user.volunteer_tracks else []
+        result.append(
+            {
+                "id": user.id,
+                "email": user.email,
+                "name": user.name,
+                "role": user.role,
+                "organization": user.organization.name if user.organization else None,
+                "organization_id": user.organization_id,
+                "role_template_id": user.role_template_id,
+                "vote_counter_opt_in": user.vote_counter_opt_in,
+                "volunteer_tracks": tracks,
+            }
+        )
+    return result
 
 
 @router.put("/users/{user_id}")
@@ -36,21 +41,60 @@ def update_user(
     user = db.query(models.User).filter(models.User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
-    if payload.organization_id is not None:
-        organization = db.query(models.Organization).filter(models.Organization.id == payload.organization_id).first()
-        if not organization:
-            raise HTTPException(status_code=404, detail="Organization not found")
-        user.organization_id = payload.organization_id
-    if payload.role_template_id is not None:
-        template = db.query(models.RoleTemplate).filter(models.RoleTemplate.id == payload.role_template_id).first()
-        if not template:
-            raise HTTPException(status_code=404, detail="Role template not found")
-        user.role_template_id = payload.role_template_id
-    if payload.role:
+    payload_data = payload.dict(exclude_unset=True)
+    if "organization_id" in payload_data:
+        if payload.organization_id is None:
+            user.organization_id = None
+        else:
+            organization = (
+                db.query(models.Organization).filter(models.Organization.id == payload.organization_id).first()
+            )
+            if not organization:
+                raise HTTPException(status_code=404, detail="Organization not found")
+            user.organization_id = payload.organization_id
+    if "volunteer_tracks" in payload_data:
+        track_list = payload.volunteer_tracks or []
+        user.volunteer_tracks = ",".join(track_list)
+        if track_list:
+            first_org = (
+                db.query(models.Organization).filter(models.Organization.name == track_list[0]).first()
+            )
+            user.organization_id = first_org.id if first_org else None
+        else:
+            user.organization_id = None
+    if "role_template_id" in payload_data:
+        if payload.role_template_id is None:
+            user.role_template_id = None
+        else:
+            template = db.query(models.RoleTemplate).filter(models.RoleTemplate.id == payload.role_template_id).first()
+            if not template:
+                raise HTTPException(status_code=404, detail="Role template not found")
+            user.role_template_id = payload.role_template_id
+    if "role" in payload_data and payload.role:
+        if user.id == admin.id and payload.role != models.UserRole.admin:
+            raise HTTPException(status_code=400, detail="Cannot change your own admin role")
         user.role = payload.role
+    if "vote_counter_opt_in" in payload_data:
+        user.vote_counter_opt_in = bool(payload.vote_counter_opt_in)
     db.add(user)
     db.commit()
     return {"status": "ok"}
+
+
+@router.delete("/users/{user_id}")
+def delete_user(
+    user_id: int,
+    db: Session = Depends(get_db),
+    admin: models.User = Depends(require_admin),
+):
+    if admin.id == user_id:
+        raise HTTPException(status_code=400, detail="Cannot delete yourself")
+    user = db.query(models.User).filter(models.User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    db.delete(user)
+    db.commit()
+    return {"status": "deleted"}
 
 
 @router.get("/organizations", response_model=List[schemas.OrganizationResponse])
@@ -65,6 +109,26 @@ def create_org(
     admin: models.User = Depends(require_admin),
 ):
     organization = models.Organization(name=payload.name, responsibility=payload.responsibility)
+    db.add(organization)
+    db.commit()
+    db.refresh(organization)
+    return organization
+
+
+@router.put("/organizations/{org_id}", response_model=schemas.OrganizationResponse)
+def update_org(
+    org_id: int,
+    payload: schemas.OrganizationUpdate,
+    db: Session = Depends(get_db),
+    admin: models.User = Depends(require_admin),
+):
+    organization = db.query(models.Organization).filter(models.Organization.id == org_id).first()
+    if not organization:
+        raise HTTPException(status_code=404, detail="Organization not found")
+    if payload.name is not None:
+        organization.name = payload.name
+    if payload.responsibility is not None:
+        organization.responsibility = payload.responsibility
     db.add(organization)
     db.commit()
     db.refresh(organization)

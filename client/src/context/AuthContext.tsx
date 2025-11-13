@@ -11,6 +11,10 @@ export interface AuthUser {
   organization?: string | null;
   responsibility?: string | null;
   role_template_id?: number | null;
+  vote_counter_opt_in?: boolean | null;
+  role_template_can_edit_vote?: boolean | null;
+  volunteer_tracks?: string[] | null;
+  organizations_detail?: { id: number; name: string; responsibility: string }[] | null;
 }
 
 interface AuthContextShape {

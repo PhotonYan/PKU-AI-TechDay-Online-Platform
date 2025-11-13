@@ -2,6 +2,15 @@ import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { apiClient } from "../api/client";
 
+interface VoteLog {
+  id: number;
+  field_name: string;
+  old_value?: number;
+  new_value?: number;
+  created_at: string;
+  user_name?: string | null;
+}
+
 interface PaperDetail {
   id: number;
   title: string;
@@ -14,7 +23,14 @@ interface PaperDetail {
   vote_innovation?: number;
   vote_impact?: number;
   vote_feasibility?: number;
+  logs?: VoteLog[];
 }
+
+const fieldLabels: Record<string, string> = {
+  vote_innovation: "最佳创意奖",
+  vote_impact: "最受欢迎奖",
+  vote_feasibility: "不明觉厉奖",
+};
 
 const PaperDetailPage = () => {
   const { id } = useParams();
@@ -28,12 +44,14 @@ const PaperDetailPage = () => {
   if (!paper) return <div>加载中...</div>;
 
   return (
-    <div className="bg-white p-6 rounded shadow">
-      <h1 className="text-2xl font-semibold mb-2">{paper.title}</h1>
-      <div className="text-sm text-slate-600 mb-4">
-        作者：{paper.author} · 方向：{paper.direction}
+    <div className="bg-white p-6 rounded shadow space-y-4">
+      <div>
+        <h1 className="text-2xl font-semibold mb-2">{paper.title}</h1>
+        <div className="text-sm text-slate-600">
+          作者：{paper.author} · 方向：{paper.direction}
+        </div>
       </div>
-      <div className="mb-4">
+      <div>
         <h2 className="font-semibold mb-1">摘要</h2>
         <p className="text-sm leading-relaxed text-slate-700 whitespace-pre-line">{paper.abstract}</p>
       </div>
@@ -48,13 +66,38 @@ const PaperDetailPage = () => {
         </div>
       </div>
       {paper.showVotes && (
-        <div className="mt-4 text-sm">
-          <div>投票数据：</div>
-          <div>创新：{paper.vote_innovation}</div>
-          <div>影响：{paper.vote_impact}</div>
-          <div>可行：{paper.vote_feasibility}</div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          {[
+            ["最佳创意奖", paper.vote_innovation],
+            ["最受欢迎奖", paper.vote_impact],
+            ["不明觉厉奖", paper.vote_feasibility],
+          ].map(([label, value]) => (
+            <div key={label as string} className="bg-slate-50 p-3 rounded border">
+              <div className="text-xs text-slate-500">{label}</div>
+              <div className="text-xl font-semibold text-slate-800">{value ?? "-"}</div>
+            </div>
+          ))}
         </div>
       )}
+      <div>
+        <h2 className="font-semibold mb-2">修改历史</h2>
+        <div className="space-y-2 text-sm">
+          {paper.logs && paper.logs.length > 0 ? (
+            paper.logs.map((log) => (
+              <div key={log.id} className="border rounded px-3 py-2 bg-slate-50">
+                <div className="text-xs text-slate-500">
+                  {new Date(log.created_at).toLocaleString()} · {log.user_name || "未知用户"}
+                </div>
+                <div>
+                  {fieldLabels[log.field_name] || log.field_name}: {log.old_value ?? "-"} → {log.new_value ?? "-"}
+                </div>
+              </div>
+            ))
+          ) : (
+            <div className="text-slate-500 text-sm">暂无修改记录</div>
+          )}
+        </div>
+      </div>
     </div>
   );
 };

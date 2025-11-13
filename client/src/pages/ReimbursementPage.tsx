@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, Fragment, useEffect, useState } from "react";
 import { apiClient } from "../api/client";
 import { useAuth } from "../context/AuthContext";
 
@@ -18,10 +18,24 @@ interface Reimbursement {
 
 const statusMap: Record<string, string> = {
   pending: "待审核",
-  approved: "已通过",
-  rejected: "已拒绝",
+  approved: "通过",
+  rejected: "拒绝",
   waiting_more: "等待补充材料",
 };
+const reviewOptions = Object.entries(statusMap).filter(([key]) => key !== "pending");
+const statusBadge: Record<string, string> = {
+  approved: "text-emerald-700",
+  rejected: "text-red-600",
+  waiting_more: "text-blue-600",
+  pending: "text-slate-700",
+};
+const reviewButtonClass: Record<string, string> = {
+  approved: "bg-emerald-50 border-emerald-200 text-emerald-700",
+  rejected: "bg-red-50 border-red-200 text-red-700",
+  waiting_more: "bg-blue-50 border-blue-200 text-blue-700",
+};
+
+type Feedback = { type: "success" | "error"; text: string } | null;
 
 const ReimbursementPage = () => {
   const { token, user } = useAuth();
@@ -36,10 +50,16 @@ const ReimbursementPage = () => {
   });
   const [file, setFile] = useState<File | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [feedback, setFeedback] = useState<Feedback>(null);
+  const [reviewingId, setReviewingId] = useState<number | null>(null);
+  const [expandedId, setExpandedId] = useState<number | null>(null);
 
   const loadData = () => {
     if (!token) return;
-    apiClient("/api/reimbursements", { token }).then(setItems);
+    apiClient("/api/reimbursements", { token })
+      .then(setItems)
+      .catch((err) => setFeedback({ type: "error", text: err.message }));
   };
 
   useEffect(() => {
@@ -55,14 +75,23 @@ const ReimbursementPage = () => {
   const submitForm = async (e: FormEvent) => {
     e.preventDefault();
     if (!token) return;
+    setSubmitting(true);
+    setFeedback(null);
     const body = new FormData();
     Object.entries(form).forEach(([key, value]) => value && body.append(key, value));
     if (file) body.append("file", file);
     const method = editingId ? "PUT" : "POST";
     const url = editingId ? `/api/reimbursements/${editingId}` : "/api/reimbursements";
-    await apiClient(url, { method, body, token });
-    resetForm();
-    loadData();
+    try {
+      await apiClient(url, { method, body, token });
+      resetForm();
+      setFeedback({ type: "success", text: editingId ? "报销更新成功" : "报销提交成功" });
+      loadData();
+    } catch (err) {
+      setFeedback({ type: "error", text: (err as Error).message });
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const editItem = (item: Reimbursement) => {
@@ -79,22 +108,50 @@ const ReimbursementPage = () => {
 
   const deleteItem = async (id: number) => {
     if (!token) return;
-    await apiClient(`/api/reimbursements/${id}`, { method: "DELETE", token });
-    loadData();
+    setSubmitting(true);
+    setFeedback(null);
+    try {
+      await apiClient(`/api/reimbursements/${id}`, { method: "DELETE", token });
+      setFeedback({ type: "success", text: "报销已删除" });
+      loadData();
+    } catch (err) {
+      setFeedback({ type: "error", text: (err as Error).message });
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const reviewItem = async (id: number, status: string) => {
     if (!token) return;
-    await apiClient(`/api/reimbursements/${id}/review`, {
-      method: "POST",
-      token,
-      body: JSON.stringify({ status }),
-    });
-    loadData();
+    setSubmitting(true);
+    setFeedback(null);
+    try {
+      await apiClient(`/api/reimbursements/${id}/review`, {
+        method: "POST",
+        token,
+        body: JSON.stringify({ status }),
+      });
+      setFeedback({ type: "success", text: "审批状态已更新" });
+      setReviewingId(null);
+      loadData();
+    } catch (err) {
+      setFeedback({ type: "error", text: (err as Error).message });
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
     <div className="grid gap-6">
+      {feedback && (
+        <div
+          className={`border px-4 py-2 rounded text-sm ${
+            feedback.type === "success" ? "bg-emerald-50 border-emerald-200 text-emerald-700" : "bg-red-50 border-red-200 text-red-700"
+          }`}
+        >
+          {feedback.text}
+        </div>
+      )}
       <div className="bg-white p-6 rounded shadow">
         <h2 className="text-lg font-semibold mb-4">{editingId ? "编辑报销" : "新建报销"}</h2>
         <form className="grid gap-4 md:grid-cols-2" onSubmit={submitForm}>
@@ -138,7 +195,7 @@ const ReimbursementPage = () => {
             <input className="mt-1" type="file" onChange={(e) => setFile(e.target.files?.[0] || null)} />
           </div>
           <div className="md:col-span-2 flex space-x-2">
-            <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded">
+            <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded disabled:opacity-60" disabled={submitting}>
               {editingId ? "保存修改" : "提交申请"}
             </button>
             {editingId && (
@@ -158,50 +215,125 @@ const ReimbursementPage = () => {
               <tr className="text-left">
                 <th className="py-2">项目</th>
                 <th>金额</th>
+                <th>内容</th>
+                <th>申请人</th>
                 <th>状态</th>
+                <th>附件</th>
                 <th>操作</th>
               </tr>
             </thead>
             <tbody>
               {items.map((item) => (
-                <tr key={item.id} className="border-t">
-                  <td className="py-2">
-                    <div className="font-medium">{item.project_name}</div>
-                    <div className="text-xs text-slate-500">{item.organization}</div>
-                  </td>
-                  <td>¥{item.amount}</td>
-                  <td>{statusMap[item.status] || item.status}</td>
-                  <td className="space-x-2">
-                    {item.file_path && (
-                      <a className="text-blue-600" href={item.file_path} target="_blank" rel="noreferrer">
-                        文件
-                      </a>
-                    )}
-                    {item.status !== "approved" && user?.role !== "admin" && (
-                      <>
-                        <button className="text-blue-600" onClick={() => editItem(item)}>
-                          编辑
-                        </button>
-                        <button className="text-red-600" onClick={() => deleteItem(item.id)}>
-                          删除
-                        </button>
-                      </>
-                    )}
-                    {user?.role === "admin" && (
-                      <div className="flex flex-col space-y-1">
-                        {Object.entries(statusMap).map(([key, label]) => (
-                          <button
-                            key={key}
-                            className="text-xs border rounded px-2"
-                            onClick={() => reviewItem(item.id, key)}
-                          >
-                            {label}
+                <Fragment key={item.id}>
+                  <tr className="border-t">
+                    <td className="py-2 cursor-pointer" onClick={() => setExpandedId((prev) => (prev === item.id ? null : item.id))}>
+                      <div className="font-medium">{item.project_name}</div>
+                      <div className="text-xs text-slate-500">{item.organization}</div>
+                    </td>
+                    <td>¥{item.amount}</td>
+                    <td className="text-sm text-slate-600">
+                      {item.content.length > 40 ? `${item.content.slice(0, 40)}...` : item.content}
+                    </td>
+                    <td>{item.applicant_name || "本人"}</td>
+                    <td className={`${statusBadge[item.status] || "text-slate-700"} font-medium`}>
+                      {statusMap[item.status] || item.status}
+                    </td>
+                    <td onClick={(e) => e.stopPropagation()}>
+                      {item.file_path ? (
+                        <a className="text-blue-600" href={item.file_path} target="_blank" rel="noreferrer">
+                          查看
+                        </a>
+                      ) : (
+                        "-"
+                      )}
+                    </td>
+                    <td className="space-x-2" onClick={(e) => e.stopPropagation()}>
+                      {item.status !== "approved" && user?.role !== "admin" && (
+                        <>
+                          <button className="text-blue-600" onClick={() => editItem(item)}>
+                            编辑
                           </button>
-                        ))}
-                      </div>
-                    )}
-                  </td>
-                </tr>
+                          <button className="text-red-600" onClick={() => deleteItem(item.id)}>
+                            删除
+                          </button>
+                        </>
+                      )}
+                      {user?.role === "admin" && (
+                        <div className="flex flex-col space-y-1">
+                          {item.status === "pending" ? (
+                            reviewOptions.map(([key, label]) => (
+                            <button
+                              key={key}
+                              className={`text-xs border rounded px-2 disabled:opacity-60 ${reviewButtonClass[key] || ""}`}
+                              disabled={submitting}
+                              onClick={() => reviewItem(item.id, key)}
+                            >
+                              {label}
+                            </button>
+                          ))
+                        ) : reviewingId === item.id ? (
+                          <>
+                            {reviewOptions.map(([key, label]) => (
+                              <button
+                                key={key}
+                                className={`text-xs border rounded px-2 disabled:opacity-60 ${reviewButtonClass[key] || ""}`}
+                                disabled={submitting}
+                                onClick={() => reviewItem(item.id, key)}
+                              >
+                                {label}
+                              </button>
+                              ))}
+                              <button className="text-xs border rounded px-2" onClick={() => setReviewingId(null)}>
+                                收起
+                              </button>
+                            </>
+                          ) : (
+                            <button
+                              className="text-xs border rounded px-2"
+                              onClick={() => setReviewingId((prev) => (prev === item.id ? null : item.id))}
+                            >
+                              修改
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                  {expandedId === item.id && (
+                    <tr>
+                      <td colSpan={7} className="bg-slate-50 px-4 py-3 text-sm">
+                        <div className="grid gap-2 md:grid-cols-2">
+                          <div>
+                            <div className="text-slate-500 text-xs">报销内容</div>
+                            <div className="font-medium">{item.content}</div>
+                          </div>
+                          <div>
+                            <div className="text-slate-500 text-xs">数量</div>
+                            <div>{item.quantity ?? "-"}</div>
+                          </div>
+                          <div>
+                            <div className="text-slate-500 text-xs">发票抬头公司</div>
+                            <div>{item.invoice_company}</div>
+                          </div>
+                          {/* <div>
+                            <div className="text-slate-500 text-xs">管理员备注</div>
+                            <div>{item.admin_note || "—"}</div>
+                          </div> */}
+                          <div className="md:col-span-2">
+                            <div className="text-slate-500 text-xs">附件</div>
+                            {item.file_path ? (
+                              <a className="text-blue-600" href={item.file_path} target="_blank" rel="noreferrer">
+                                查看上传文件
+                              </a>
+                            ) : (
+                              <div>无</div>
+                            )}
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
               ))}
             </tbody>
           </table>

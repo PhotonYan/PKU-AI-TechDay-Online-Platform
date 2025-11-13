@@ -21,21 +21,27 @@ interface UserRow {
   role: string;
   organization_id?: number;
   organization?: string;
-  role_template_id?: number;
+  role_template_id?: number | null;
+  vote_counter_opt_in?: boolean;
+  volunteer_tracks?: string[];
 }
 
 const AdminSettingsPage = () => {
-  const { token } = useAuth();
+  const { token, user: authUser } = useAuth();
   const [orgs, setOrgs] = useState<Organization[]>([]);
   const [roles, setRoles] = useState<RoleTemplate[]>([]);
   const [users, setUsers] = useState<UserRow[]>([]);
+  const [filters, setFilters] = useState({ role: "all", org: "all", template: "all" });
   const [settings, setSettings] = useState<{
     show_vote_data: boolean;
     vote_sort_enabled: boolean;
     vote_edit_role_template_id: number | null;
   }>({ show_vote_data: false, vote_sort_enabled: false, vote_edit_role_template_id: null });
   const [orgForm, setOrgForm] = useState({ name: "", responsibility: "" });
+  const [editingOrgId, setEditingOrgId] = useState<number | null>(null);
+  const [orgEditForm, setOrgEditForm] = useState({ name: "", responsibility: "" });
   const [roleForm, setRoleForm] = useState({ name: "", can_edit_vote_data: false });
+  const [showOrgEditor, setShowOrgEditor] = useState(true);
 
   const loadAll = () => {
     if (!token) return;
@@ -73,6 +79,22 @@ const AdminSettingsPage = () => {
     loadAll();
   };
 
+  const startEditOrg = (org: Organization) => {
+    setEditingOrgId(org.id);
+    setOrgEditForm({ name: org.name, responsibility: org.responsibility });
+  };
+
+  const saveOrgEdit = async () => {
+    if (!token || editingOrgId === null) return;
+    await apiClient(`/api/admin/organizations/${editingOrgId}`, {
+      method: "PUT",
+      token,
+      body: JSON.stringify(orgEditForm),
+    });
+    setEditingOrgId(null);
+    loadAll();
+  };
+
   const submitRole = async (e: FormEvent) => {
     e.preventDefault();
     if (!token) return;
@@ -93,6 +115,12 @@ const AdminSettingsPage = () => {
     if (payload.role) {
       bodyPayload.role = payload.role;
     }
+    if (payload.vote_counter_opt_in !== undefined) {
+      bodyPayload.vote_counter_opt_in = payload.vote_counter_opt_in;
+    }
+    if (payload.volunteer_tracks !== undefined) {
+      bodyPayload.volunteer_tracks = payload.volunteer_tracks;
+    }
     await apiClient(`/api/admin/users/${userId}`, {
       method: "PUT",
       token,
@@ -100,6 +128,38 @@ const AdminSettingsPage = () => {
     });
     loadAll();
   };
+
+  const deleteUser = async (userId: number) => {
+    if (!token) return;
+    await apiClient(`/api/admin/users/${userId}`, { method: "DELETE", token });
+    loadAll();
+  };
+
+  const toggleUserOrg = (user: UserRow, orgName: string) => {
+    if (authUser?.id === user.id) return;
+    const current = user.volunteer_tracks || [];
+    const next = current.includes(orgName)
+      ? current.filter((name: string) => name !== orgName)
+      : [...current, orgName];
+    updateUser(user.id, { volunteer_tracks: next });
+  };
+
+  const handleTemplateChange = (userId: number, value: string) => {
+    if (value === "0") {
+      updateUser(userId, { role_template_id: null });
+    } else {
+      updateUser(userId, { role_template_id: Number(value) });
+    }
+  };
+
+  const filteredUsers = users.filter((u) => {
+    if (filters.role !== "all" && u.role !== filters.role) return false;
+    if (filters.org !== "all" && !(u.volunteer_tracks || []).includes(filters.org)) return false;
+    if (filters.template === "none" && u.role_template_id) return false;
+    if (filters.template !== "all" && filters.template !== "none" && u.role_template_id !== Number(filters.template))
+      return false;
+    return true;
+  });
 
   const uploadCsv = async (file: File) => {
     if (!token) return;
@@ -179,93 +239,154 @@ const AdminSettingsPage = () => {
         </form>
         <ul className="mt-3 text-sm space-y-1">
           {orgs.map((org) => (
-            <li key={org.id}>
-              {org.name} — {org.responsibility}
+            <li key={org.id} className="flex items-center justify-between">
+              <span>
+                {org.name} — {org.responsibility}
+              </span>
+              <button className="text-blue-600 text-xs" type="button" onClick={() => startEditOrg(org)}>
+                编辑
+              </button>
             </li>
           ))}
         </ul>
+        {editingOrgId !== null && (
+          <div className="mt-4 border rounded p-3 space-y-2 bg-slate-50">
+            <div className="text-sm font-medium">编辑工作组</div>
+            <input
+              className="border rounded px-3 py-2 w-full"
+              value={orgEditForm.name}
+              onChange={(e) => setOrgEditForm({ ...orgEditForm, name: e.target.value })}
+            />
+            <input
+              className="border rounded px-3 py-2 w-full"
+              value={orgEditForm.responsibility}
+              onChange={(e) => setOrgEditForm({ ...orgEditForm, responsibility: e.target.value })}
+            />
+            <div className="flex gap-2">
+              <button className="px-3 py-1 bg-blue-600 text-white rounded" type="button" onClick={saveOrgEdit}>
+                保存
+              </button>
+              <button className="px-3 py-1 border rounded" type="button" onClick={() => setEditingOrgId(null)}>
+                取消
+              </button>
+            </div>
+          </div>
+        )}
       </section>
 
-      <section className="bg-white p-6 rounded shadow">
-        <h2 className="text-lg font-semibold mb-3">角色模板</h2>
-        <form className="grid gap-3 md:grid-cols-3" onSubmit={submitRole}>
-          <input
-            className="border rounded px-3 py-2"
-            placeholder="名称"
-            value={roleForm.name}
-            onChange={(e) => setRoleForm({ ...roleForm, name: e.target.value })}
-          />
-          <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={roleForm.can_edit_vote_data}
-              onChange={(e) => setRoleForm({ ...roleForm, can_edit_vote_data: e.target.checked })}
-            />
-            可编辑投票
-          </label>
-          <button className="bg-emerald-600 text-white px-4 py-2 rounded" type="submit">
-            新建
-          </button>
-        </form>
-        <ul className="mt-3 text-sm space-y-1">
-          {roles.map((role) => (
-            <li key={role.id}>
-              {role.name} · {role.can_edit_vote_data ? "可编辑投票" : "只读"}
-            </li>
-          ))}
-        </ul>
-      </section>
+      
 
       <section className="bg-white p-6 rounded shadow overflow-x-auto">
         <h2 className="text-lg font-semibold mb-3">用户角色与组织</h2>
-        <table className="min-w-full text-sm">
+        <div className="flex items-center gap-3 mb-3 text-sm">
+          <label className="flex items-center gap-2">
+            <input type="checkbox" checked={showOrgEditor} onChange={(e) => setShowOrgEditor(e.target.checked)} />
+            显示工作组多选按钮
+          </label>
+        </div>
+        <table className="min-w-full text-sm table-fixed">
           <thead>
             <tr>
-              <th className="text-left">姓名</th>
-              <th>邮箱</th>
-              <th>角色</th>
-              <th>组织</th>
-              <th>角色模板</th>
+              {["姓名", "邮箱", "角色", "组织", "角色模板", "计票志愿者", "操作"].map((label) => (
+                <th key={label} className="text-left px-2 py-2">
+                  {label}
+                </th>
+              ))}
+            </tr>
+            <tr className="text-xs text-slate-500">
+              <th className="px-2" />
+              <th className="px-2" />
+              <th className="px-2">
+                <select
+                  className="border rounded px-2 py-1"
+                  value={filters.role}
+                  onChange={(e) => setFilters((prev) => ({ ...prev, role: e.target.value }))}
+                >
+                  <option value="all">全部角色</option>
+                  <option value="admin">管理员</option>
+                  <option value="volunteer">志愿者</option>
+                </select>
+              </th>
+              <th className="px-2">
+                <select
+                  className="border rounded px-2 py-1"
+                  value={filters.org}
+                  onChange={(e) => setFilters((prev) => ({ ...prev, org: e.target.value }))}
+                >
+                  <option value="all">全部工作组</option>
+                  {orgs.map((org) => (
+                    <option key={org.id} value={org.name}>
+                      {org.name}
+                    </option>
+                  ))}
+                </select>
+              </th>
+              <th className="px-2">
+                <select
+                  className="border rounded px-2 py-1"
+                  value={filters.template}
+                  onChange={(e) => setFilters((prev) => ({ ...prev, template: e.target.value }))}
+                >
+                  <option value="all">全部模板</option>
+                  <option value="none">无</option>
+                  {roles.map((role) => (
+                    <option key={role.id} value={role.id}>
+                      {role.name}
+                    </option>
+                  ))}
+                </select>
+              </th>
+              <th className="px-2" />
+              <th className="px-2" />
             </tr>
           </thead>
           <tbody>
-            {users.map((u) => (
+            {filteredUsers.map((u) => (
               <tr key={u.id} className="border-t">
-                <td>{u.name}</td>
-                <td>{u.email}</td>
-                <td>
+                <td className="px-2 py-2">{u.name}</td>
+                <td className="px-2 py-2 break-all">{u.email}</td>
+                <td className="px-2 py-2">
                   <select
                     value={u.role}
                     onChange={(e) => updateUser(u.id, { role: e.target.value })}
                     className="border rounded px-2"
+                    disabled={authUser?.id === u.id}
                   >
                     <option value="volunteer">志愿者</option>
                     <option value="admin">管理员</option>
                   </select>
                 </td>
-                <td>
-                  <select
-                    value={u.organization_id || 0}
-                    onChange={(e) =>
-                      updateUser(u.id, { organization_id: Number(e.target.value) || undefined })
-                    }
-                    className="border rounded px-2"
-                  >
-                    <option value={0}>未分配</option>
-                    {orgs.map((org) => (
-                      <option key={org.id} value={org.id}>
-                        {org.name}
-                      </option>
-                    ))}
-                  </select>
+                <td className="px-2 py-2 max-w-xs">
+                  <div className="text-xs text-slate-600 whitespace-pre-wrap break-words">
+                    {(u.volunteer_tracks || []).join("、") || "未分配"}
+                  </div>
+                  {showOrgEditor && (
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {orgs.map((org) => {
+                        const selected = (u.volunteer_tracks || []).includes(org.name);
+                        return (
+                          <button
+                            key={org.id}
+                            type="button"
+                            disabled={authUser?.id === u.id}
+                            className={`border rounded px-2 py-0.5 text-xs whitespace-normal break-words ${
+                              selected ? "bg-blue-600 text-white" : "bg-white"
+                            }`}
+                            onClick={() => toggleUserOrg(u, org.name)}
+                          >
+                            {org.name}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
                 </td>
-                <td>
+                <td className="px-2 py-2">
                   <select
                     value={u.role_template_id || 0}
-                    onChange={(e) =>
-                      updateUser(u.id, { role_template_id: Number(e.target.value) || undefined })
-                    }
+                    onChange={(e) => handleTemplateChange(u.id, e.target.value)}
                     className="border rounded px-2"
+                    disabled={authUser?.id === u.id}
                   >
                     <option value={0}>无</option>
                     {roles.map((role) => (
@@ -274,6 +395,27 @@ const AdminSettingsPage = () => {
                       </option>
                     ))}
                   </select>
+                </td>
+                <td className="px-2 py-2">
+                  <label className="flex items-center gap-1 text-xs">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(u.vote_counter_opt_in)}
+                      onChange={(e) => updateUser(u.id, { vote_counter_opt_in: e.target.checked })}
+                      disabled={authUser?.id === u.id}
+                    />
+                    自愿
+                  </label>
+                </td>
+                <td className="px-2 py-2">
+                  <button
+                    className="text-red-600 text-xs disabled:opacity-50"
+                    type="button"
+                    onClick={() => deleteUser(u.id)}
+                    disabled={authUser?.id === u.id}
+                  >
+                    删除
+                  </button>
                 </td>
               </tr>
             ))}

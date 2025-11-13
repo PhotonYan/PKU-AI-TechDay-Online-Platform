@@ -1,13 +1,22 @@
-import { FormEvent, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { FormEvent, useEffect, useState } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
 const LoginPage = () => {
   const { login } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [email, setEmail] = useState("admin@techday.local");
   const [password, setPassword] = useState("AdminPass123");
   const [error, setError] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (params.get("registered") === "1") {
+      setInfo("注册成功，请使用邮箱密码登录");
+    }
+  }, [location.search]);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -21,8 +30,9 @@ const LoginPage = () => {
   };
 
   return (
-    <div className="max-w-md mx-auto bg-white p-6 rounded-lg shadow">
+    <div className="max-w-md mx-auto bg-white p-6 rounded-lg shadow space-y-4">
       <h1 className="text-xl font-semibold mb-4">登录</h1>
+      {info && <div className="bg-emerald-50 text-emerald-700 px-3 py-2 rounded text-sm">{info}</div>}
       <form className="space-y-4" onSubmit={handleSubmit}>
         <div>
           <label className="block text-sm font-medium">邮箱</label>
@@ -49,6 +59,12 @@ const LoginPage = () => {
           登录
         </button>
       </form>
+      <div className="text-center text-sm text-slate-600">
+        还没有账号？
+        <Link className="text-blue-600 ml-1" to="/volunteer/register">
+          注册为志愿者
+        </Link>
+      </div>
     </div>
   );
 };

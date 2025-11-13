@@ -52,6 +52,13 @@ def get_paper(paper_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Paper not found")
     settings_row = db.query(models.SiteSettings).first()
     show_votes = settings_row.show_vote_data if settings_row else False
+    logs = (
+        db.query(models.PaperVoteLog)
+        .filter(models.PaperVoteLog.paper_id == paper_id)
+        .order_by(models.PaperVoteLog.created_at.desc())
+        .limit(50)
+        .all()
+    )
     payload = {
         "id": paper.id,
         "title": paper.title,
@@ -61,6 +68,17 @@ def get_paper(paper_id: int, db: Session = Depends(get_db)):
         "contact": paper.contact,
         "venue": paper.venue,
         "showVotes": show_votes,
+        "logs": [
+            {
+                "id": log.id,
+                "field_name": log.field_name,
+                "old_value": log.old_value,
+                "new_value": log.new_value,
+                "created_at": log.created_at,
+                "user_name": log.user.name if log.user else None,
+            }
+            for log in logs
+        ],
     }
     if show_votes:
         payload.update(

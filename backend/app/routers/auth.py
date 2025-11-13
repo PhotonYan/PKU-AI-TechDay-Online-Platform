@@ -1,3 +1,4 @@
+import logging
 from datetime import timedelta
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -5,12 +6,14 @@ from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 
 from .. import models, schemas
-from ..auth import create_access_token, get_password_hash, verify_password
+from ..auth import create_access_token, get_password_hash, verify_password, pwd_context
 from ..config import get_settings
 from ..dependencies import get_current_user, get_db
+from ..utils.user import user_to_response
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 settings = get_settings()
+logger = logging.getLogger("techday.auth")
 
 
 @router.post("/register", response_model=schemas.UserResponse)
@@ -27,11 +30,12 @@ def register_user(payload: schemas.UserCreate, db: Session = Depends(get_db)):
         volunteer_tracks=",".join(payload.volunteer_tracks),
         availability_slots=",".join(payload.availability_slots),
         role=models.UserRole.volunteer,
+        vote_counter_opt_in=payload.vote_counter_opt_in,
     )
     db.add(user)
     db.commit()
     db.refresh(user)
-    return user
+    return user_to_response(user, db)
 
 
 @router.post("/login", response_model=schemas.Token)
@@ -41,7 +45,14 @@ def login_for_access_token(
 ):
     user = db.query(models.User).filter(models.User.email == form_data.username).first()
     if not user or not verify_password(form_data.password, user.password_hash):
+        logger.warning("Login failed for email=%s", form_data.username)
         raise HTTPException(status_code=400, detail="Incorrect email or password")
+    if pwd_context.needs_update(user.password_hash):
+        user.password_hash = get_password_hash(form_data.password)
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+    logger.info("Login success for user_id=%s email=%s", user.id, user.email)
     access_token = create_access_token(
         data={"sub": user.id},
         expires_delta=timedelta(minutes=settings.access_token_expire_minutes),
@@ -50,19 +61,5 @@ def login_for_access_token(
 
 
 @router.get("/me", response_model=schemas.UserResponse)
-def read_users_me(current_user: models.User = Depends(get_current_user)):
-    organization_name = current_user.organization.name if current_user.organization else None
-    responsibility = current_user.organization.responsibility if current_user.organization else None
-    return schemas.UserResponse(
-        id=current_user.id,
-        email=current_user.email,
-        name=current_user.name,
-        college=current_user.college,
-        grade=current_user.grade,
-        volunteer_tracks=current_user.volunteer_tracks.split(",") if current_user.volunteer_tracks else None,
-        availability_slots=current_user.availability_slots.split(",") if current_user.availability_slots else None,
-        role=current_user.role,
-        organization=organization_name,
-        responsibility=responsibility,
-        role_template_id=current_user.role_template_id,
-    )
+def read_users_me(current_user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
+    return user_to_response(current_user, db)
