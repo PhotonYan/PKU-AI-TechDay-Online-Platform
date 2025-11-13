@@ -77,7 +77,7 @@ const VolunteerRegisterPage = () => {
           { key: "email", label: "邮箱", type: "email" },
           { key: "password", label: "密码", type: "password" },
           { key: "college", label: "学院" },
-          { key: "grade", label: "界别" },
+          { key: "grade", label: "届别" },
           { key: "student_id", label: "学号" },
         ].map((field) => (
           <div key={field.key}>
