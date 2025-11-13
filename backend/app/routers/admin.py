@@ -117,6 +117,14 @@ def export_users(db: Session = Depends(get_db), admin: models.User = Depends(req
     )
 
 
+@router.post("/papers/clear")
+def clear_papers(db: Session = Depends(get_db), admin: models.User = Depends(require_admin)):
+    db.query(models.PaperVoteLog).delete()
+    db.query(models.Paper).delete()
+    db.commit()
+    return {"status": "cleared"}
+
+
 @router.get("/organizations", response_model=List[schemas.OrganizationResponse])
 def list_orgs(db: Session = Depends(get_db), admin: models.User = Depends(require_admin)):
     return db.query(models.Organization).all()

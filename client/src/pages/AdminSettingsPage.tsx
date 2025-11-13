@@ -161,12 +161,19 @@ const AdminSettingsPage = () => {
     return true;
   });
 
-  const uploadCsv = async (file: File) => {
+  const uploadPaperCsv = async (file: File) => {
     if (!token) return;
     const form = new FormData();
     form.append("file", file);
     await apiClient("/api/papers/import", { method: "POST", body: form, token });
-    alert("CSV 导入成功");
+    alert("上传成功，成果展示已刷新");
+  };
+
+  const clearPapers = async () => {
+    if (!token) return;
+    if (!window.confirm("确定清空全部成果展示数据？")) return;
+    await apiClient("/api/admin/papers/clear", { method: "POST", token });
+    alert("成果展示数据已清空");
   };
 
   const exportUsers = async () => {
@@ -238,9 +245,15 @@ const AdminSettingsPage = () => {
         </div>
       </section>
 
-      <section className="bg-white p-6 rounded shadow">
-        <h2 className="text-lg font-semibold mb-3">论文 CSV 导入</h2>
-        <input type="file" accept=".csv" onChange={(e) => e.target.files && uploadCsv(e.target.files[0])} />
+      <section className="bg-white p-6 rounded shadow space-y-3">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold">成果展示数据管理</h2>
+          <button className="px-3 py-2 border rounded text-xs text-red-600" type="button" onClick={clearPapers}>
+            清空当前数据
+          </button>
+        </div>
+        <label className="text-sm text-slate-600">上传 CSV（首列为“序号”）</label>
+        <input type="file" accept=".csv" onChange={(e) => e.target.files && uploadPaperCsv(e.target.files[0])} />
       </section>
 
       <section className="bg-white p-6 rounded shadow">
@@ -439,7 +452,9 @@ const AdminSettingsPage = () => {
                   <button
                     className="text-red-600 text-xs disabled:opacity-50"
                     type="button"
-                    onClick={() => deleteUser(u.id)}
+                    onClick={() => {
+                      if (window.confirm("确认删除该用户？")) deleteUser(u.id);
+                    }}
                     disabled={authUser?.id === u.id}
                   >
                     删除

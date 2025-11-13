@@ -1,70 +1,92 @@
 # 科技节在线平台架构设计
 
 ## 1. 技术栈概览
-- **前端**：Vite + React + TypeScript + React Router + TailwindCSS（纯前端静态资源，可由 nginx 托管）
-- **后端**：FastAPI + SQLAlchemy + Pydantic + JWT（python-jose）+ Passlib
-- **数据库**：PostgreSQL（开发阶段默认连接 SQLite，可通过环境变量切换）
-- **对象存储**：本地 `uploads/` 目录（可通过 NFS/OSS 替换）
-- **容器化**：Docker Compose（`nginx` + `backend` + `frontend` + `postgres`）
-
-## 2. 模块与服务
-| 层级 | 说明 |
+| 层次 | 技术 |
 | --- | --- |
-| `frontend` | 负责路由、鉴权状态管理、三大模块 UI。与后端通过 REST API 交互 |
-| `backend`  | FastAPI 提供鉴权、权限校验、CRUD、文件上传、CSV 导入、操作日志 |
-| `postgres` | 持久化数据；可在开发态用 SQLite 免安装 |
-| `nginx`    | 反向代理 `/api` 到后端，提供前端静态资源，托管上传文件 |
+| 前端 | Vite + React + TypeScript + React Router + TailwindCSS |
+| 后端 | FastAPI + SQLAlchemy + Pydantic + python-jose + Passlib |
+| 数据库 | PostgreSQL（开发默认 SQLite，启动时自动建表与字段） |
+| 对象存储 | 本地 `backend/uploads/`，nginx 暴露 `/uploads/*` |
+| 容器 | Docker Compose：`backend`(FastAPI) + `frontend`(Vite build) + `postgres` + `nginx` |
 
-## 3. 数据库 Schema
+## 2. 模块划分
+- **Auth & Volunteers**：JWT 登录、志愿者报名、个人信息展示。`users` 中记录志愿者偏好（多个工作组 `volunteer_tracks`、服务时段 `availability_slots`、计票意愿 `vote_counter_opt_in`、学号 `student_id`）。
+- **Reimbursements**：志愿者仅能创建/编辑自己且组织从所属工作组下拉选择；管理员可审核、导出 CSV、强制删除任意记录。上传附件存磁盘。
+- **Papers Table**：无需登录即可浏览。若管理员开启“展示投票”，则列表与详情显示三项投票数据；拥有投票权限者可在列表直接用 `创/欢/不` 输入，同时后端写 `paper_vote_logs`。
+- **Admin Settings**：管理组织、角色模板、投票展示开关、用户多组织分配、导出人员 CSV。
+
+## 3. 数据库 Schema（关键字段）
 ```text
-users                (id, email, password_hash, name, college, grade, volunteer_tracks, availability_slots,
-                      role, organization_id, role_template_id, created_at)
-organizations        (id, name, responsibility)
-role_templates       (id, name, can_edit_vote_data)
-reimbursements       (id, project_name, organization, content, quantity, amount, invoice_company,
-                      file_path, status, applicant_id, created_at, updated_at, admin_note)
-papers               (id, title, author, abstract, direction, contact, venue,
-                      vote_innovation, vote_impact, vote_feasibility, created_by)
-paper_vote_logs      (id, paper_id, user_id, field_name, old_value, new_value, created_at)
-site_settings        (id, show_vote_data, vote_sort_enabled, vote_edit_role_template_id)
+users (
+  id, email, password_hash, name, college, grade, student_id,
+  volunteer_tracks, availability_slots, role, organization_id,
+  role_template_id, vote_counter_opt_in, created_at
+)
+organizations (id, name, responsibility)
+role_templates (id, name, can_edit_vote_data)
+reimbursements (
+  id, project_name, organization, content, quantity, amount,
+  invoice_company, file_path, status, admin_note,
+  applicant_id, created_at, updated_at
+)
+papers (
+  id, sequence_no, title, author, abstract, direction, contact,
+  venue, vote_innovation, vote_impact, vote_feasibility, created_by
+)
+paper_vote_logs (
+  id, paper_id, user_id, field_name, old_value, new_value, created_at
+)
+site_settings (id, show_vote_data, vote_sort_enabled, vote_edit_role_template_id)
 ```
-> `volunteer_tracks` 使用 `,` 分隔（志愿 I/II/III），`availability_slots` 存储 JSON 字符串（如 `["13:00","14:00"]`）。
+
+> `volunteer_tracks` 以逗号分隔，一旦管理员在后台为某人勾选多个工作组，该人报销时即可下拉选择对应组织；无组织时自动回退为“未分配组织”。
 
 ## 4. 权限矩阵
-| 能力 | 志愿者 | 管理员 | 角色模板（可配置） |
+| 能力 | 志愿者 | 管理员 | 拥有 `can_edit_vote_data` 模板 |
 | --- | --- | --- | --- |
-| 报销 CRUD 自身 | ✅ | 查看全部、审核 | ✅（若赋予） |
-| CSV 上传/论文 CRUD | ❌ | ✅ | ❌ |
-| 修改投票三项数据 | ❌ | ✅ | ✅（模板 `can_edit_vote_data=true`） |
-| 志愿者组织分配 | 只读 | ✅ | ❌ |
+| 报销 CRUD（本人） | ✅ | ✅（全部且可强制删除） | ✅ |
+| 报销审核/导出 CSV | ❌ | ✅ | ❌ |
+| 审核/导出人员 | ❌ | ✅ | ❌ |
+| 论文投票编辑 | ❌ | ✅ | ✅ |
+| 查看投票修改历史 | ❌ | ✅ | ✅ |
 
-## 5. API 总览
-`/api/auth/register`、`/api/auth/login`、`/api/auth/me`
-`/api/reimbursements`：GET/POST（志愿者=自己的，管理员=全部）、PATCH/DELETE（受状态限制）、`/{id}/review`
-`/api/papers`：公共 GET 列表/详情（支持 `sort=innovation|impact|feasibility` 与展示开关）；POST CSV 导入；PATCH vote
-`/api/volunteers/me`：查看个人信息；`/api/admin/users`：列表/更新志愿者组织
-`/api/settings/votes`：管理员配置投票展示与可编辑模板
+## 5. 主要接口
+| 路径 | 说明 |
+| --- | --- |
+| `POST /api/auth/register` / `login` / `GET /me` | JWT 注册/登录/自检 |
+| `POST /api/volunteers/register` | 志愿者报名（含学号、志愿方向、计票意愿） |
+| `GET /api/volunteers/me` | 汇总个人信息 + 多组织职责 |
+| `GET/POST/PUT/DELETE /api/reimbursements` | 报销列表、创建、编辑、删除（管理员可跨人删除） |
+| `POST /api/reimbursements/{id}/review` | 管理员审核状态 |
+| `GET /api/reimbursements/export/csv` | 管理员导出全部报销 |
+| `GET/POST /api/papers` | 列表/导入 CSV（首列 `序号`） |
+| `PATCH /api/papers/{id}/votes` | 更新投票并写入 `paper_vote_logs` |
+| `GET /api/papers/{id}` | 详情 + 最近 50 条修改日志（权限可见） |
+| `GET/POST/PUT /api/admin/organizations` | 定义工作组与职责 |
+| `GET/POST /api/admin/roles` | 管理角色模板 |
+| `GET/PUT /api/admin/settings/votes` | 投票展示开关与可编辑模板 |
+| `GET/PUT/DELETE /api/admin/users/{id}` | 多组织分配、计票权限、删除用户 |
+| `GET /api/admin/users/export` | 导出当前人员 CSV（含学号、志愿方向、时段、计票意愿） |
 
 ## 6. 前端路由
-| Path | 说明 |
+| Path | 描述 |
 | --- | --- |
-| `/` | Table 列表（公开）
-| `/papers/:id` | 论文详情页
-| `/login` | 登录页
-| `/reimbursements` | 报销列表 + 表单
-| `/admin/reimbursements/:id` | 审核页
-| `/volunteer/register` | 志愿者报名表
-| `/volunteer/profile` | 个人信息页
-| `/admin/settings` | CSV 上传、投票设置、组织管理
+| `/` | 成果展示（公开，权限用户可就地改票） |
+| `/papers/:id` | 论文详情 + 修改历史 |
+| `/login` | 登录入口，同时承载“注册为志愿者”按钮 |
+| `/volunteer/register` | 志愿者报名表 |
+| `/volunteer/profile` | 个人资料与组织职责 |
+| `/reimbursements` | 报销列表 & 表单；管理员有审核/导出工具 |
+| `/admin/settings` | 组织/模板/投票设置/人员管理/CSV 工具 |
 
 ## 7. 日志与审计
-- Reimbursement 更新写入 `updated_at`，管理员操作可写 `admin_note`
-- 投票修改写入 `paper_vote_logs`（字段、旧值、新值、操作者）
+- `paper_vote_logs`：记录字段名、旧值、新值、操作者、时间戳；详情页按倒序展示。
+- 报销导出 CSV 包含中文状态，可用于线下留存；管理员审核写 `admin_note`。
+- 启动脚本自动创建默认管理员及缺失列，避免多环境迁移遗漏。
 
-## 8. 部署流程（概要）
-1. `docker compose build`
-2. `docker compose up -d`
-3. nginx 暴露 80 端口：`/` 前端静态资源，`/api` -> backend，`/uploads` 静态文件
-4. 默认管理员：`admin@techday.local` / `AdminPass123`（启动时若不存在自动创建）
+## 8. 部署/运行
+1. 本地开发：`uvicorn app.main:app --reload` + `npm run dev`。后端默认 SQLite，上传文件存 `backend/uploads/`。
+2. 生产：`docker compose build && docker compose up -d`，nginx 暴露 `http://localhost:8080`，其中 `/api` 反代后端、`/uploads` 提供静态文件。
+3. 默认账号：`admin@techday.local / AdminPass123`，首次启动自动写入。
 
-详见根目录 `README.md` 获取运行/测试/镜像打包说明。
+更多运行细节与使用说明请参阅根目录 `README.md`。
