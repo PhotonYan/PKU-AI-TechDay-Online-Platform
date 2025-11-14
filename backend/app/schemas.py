@@ -29,6 +29,7 @@ class UserBase(BaseModel):
     grade: Optional[str] = None
     student_id: Optional[str] = None
     volunteer_tracks: Optional[List[str]] = None
+    assigned_tracks: Optional[List[str]] = None
     availability_slots: Optional[List[str]] = None
     role: UserRole = UserRole.volunteer
     organization: Optional[str] = None
@@ -157,8 +158,7 @@ class OrganizationUpdate(BaseModel):
 
 class UserUpdate(BaseModel):
     organization_id: Optional[int] = None
-    volunteer_tracks: Optional[List[str]] = None
-    organization_ids: Optional[List[int]] = None
+    assigned_tracks: Optional[List[str]] = None
     role_template_id: Optional[int] = None
     role: Optional[UserRole] = None
     vote_counter_opt_in: Optional[bool] = None

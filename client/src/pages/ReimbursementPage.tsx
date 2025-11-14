@@ -56,18 +56,18 @@ const ReimbursementPage = () => {
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const baseOrgOptions = useMemo(() => {
     if (!user) return [];
+    if (user.assigned_tracks && user.assigned_tracks.length > 0) {
+      return user.assigned_tracks;
+    }
     if (user.organizations_detail?.length) {
       return user.organizations_detail.map((org) => org.name);
-    }
-    if (user.volunteer_tracks && user.volunteer_tracks.length > 0) {
-      return user.volunteer_tracks;
     }
     if (user.organization) {
       return [user.organization];
     }
     return [];
   }, [user]);
-  const orgOptionList = baseOrgOptions.length > 0 ? baseOrgOptions : ["未分配组织"];
+  const orgOptionList = baseOrgOptions.length > 0 ? baseOrgOptions : ["待分配"];
   const orgOptionsKey = orgOptionList.join("|");
 
   const renderedOrgOptions = useMemo(() => {
@@ -221,6 +221,7 @@ const ReimbursementPage = () => {
                 <select
                   className="mt-1 w-full border rounded px-3 py-2"
                   value={form.organization}
+                  disabled={baseOrgOptions.length === 0}
                   onChange={(e) => setForm({ ...form, organization: e.target.value })}
                 >
                   {renderedOrgOptions.map((org) => (

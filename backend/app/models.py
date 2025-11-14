@@ -60,6 +60,7 @@ class User(Base):
     grade = Column(String, nullable=True)
     student_id = Column(String, nullable=True, unique=True)
     volunteer_tracks = Column(String, nullable=True)
+    assigned_tracks = Column(String, nullable=True)
     availability_slots = Column(Text, nullable=True)
     role = Column(Enum(UserRole), default=UserRole.volunteer, index=True)
     vote_counter_opt_in = Column(Boolean, default=False)

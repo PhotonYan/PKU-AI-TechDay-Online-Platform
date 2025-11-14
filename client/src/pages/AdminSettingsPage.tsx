@@ -24,6 +24,7 @@ interface UserRow {
   role_template_id?: number | null;
   vote_counter_opt_in?: boolean;
   volunteer_tracks?: string[];
+  assigned_tracks?: string[];
 }
 
 const AdminSettingsPage = () => {
@@ -118,8 +119,8 @@ const AdminSettingsPage = () => {
     if (payload.vote_counter_opt_in !== undefined) {
       bodyPayload.vote_counter_opt_in = payload.vote_counter_opt_in;
     }
-    if (payload.volunteer_tracks !== undefined) {
-      bodyPayload.volunteer_tracks = payload.volunteer_tracks;
+    if (payload.assigned_tracks !== undefined) {
+      bodyPayload.assigned_tracks = payload.assigned_tracks;
     }
     await apiClient(`/api/admin/users/${userId}`, {
       method: "PUT",
@@ -137,11 +138,11 @@ const AdminSettingsPage = () => {
 
   const toggleUserOrg = (user: UserRow, orgName: string) => {
     if (authUser?.id === user.id) return;
-    const current = user.volunteer_tracks || [];
+    const current = user.assigned_tracks || [];
     const next = current.includes(orgName)
       ? current.filter((name: string) => name !== orgName)
       : [...current, orgName];
-    updateUser(user.id, { volunteer_tracks: next });
+    updateUser(user.id, { assigned_tracks: next });
   };
 
   const handleTemplateChange = (userId: number, value: string) => {
@@ -154,7 +155,7 @@ const AdminSettingsPage = () => {
 
   const filteredUsers = users.filter((u) => {
     if (filters.role !== "all" && u.role !== filters.role) return false;
-    if (filters.org !== "all" && !(u.volunteer_tracks || []).includes(filters.org)) return false;
+    if (filters.org !== "all" && !(u.assigned_tracks || []).includes(filters.org)) return false;
     if (filters.template === "none" && u.role_template_id) return false;
     if (filters.template !== "all" && filters.template !== "none" && u.role_template_id !== Number(filters.template))
       return false;
@@ -399,20 +400,28 @@ const AdminSettingsPage = () => {
                 </td>
                 <td className="px-2 py-2 max-w-xs">
                   <div className="text-xs text-slate-600 whitespace-pre-wrap break-words">
-                    {(u.volunteer_tracks || []).join("、") || "未分配"}
+                    当前：{(u.assigned_tracks || []).join("、") || "未分配"}
                   </div>
+                  {(u.volunteer_tracks || []).length > 0 && (
+                    <div className="text-xs text-slate-400 mt-1">志愿：{(u.volunteer_tracks || []).join("、")}</div>
+                  )}
                   {showOrgEditor && (
-                    <div className="flex flex-wrap gap-1 mt-1">
+                    <div className="flex flex-wrap gap-1 mt-2">
                       {orgs.map((org) => {
-                        const selected = (u.volunteer_tracks || []).includes(org.name);
+                        const assigned = (u.assigned_tracks || []).includes(org.name);
+                        const preferred = (u.volunteer_tracks || []).includes(org.name);
+                        let colorClass = "bg-white text-slate-700";
+                        if (assigned) {
+                          colorClass = "bg-blue-600 text-white";
+                        } else if (preferred) {
+                          colorClass = "bg-blue-100 text-blue-700";
+                        }
                         return (
                           <button
                             key={org.id}
                             type="button"
                             disabled={authUser?.id === u.id}
-                            className={`border rounded px-2 py-0.5 text-xs whitespace-normal break-words ${
-                              selected ? "bg-blue-600 text-white" : "bg-white"
-                            }`}
+                            className={`border rounded px-2 py-0.5 text-xs whitespace-normal break-words ${colorClass}`}
                             onClick={() => toggleUserOrg(u, org.name)}
                           >
                             {org.name}

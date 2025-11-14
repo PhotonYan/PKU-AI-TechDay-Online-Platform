@@ -17,8 +17,8 @@ STATUS_LABELS = {
 }
 
 
-def _allowed_organizations(user: models.User) -> list[str]:
-    tracks = user.volunteer_tracks.split(",") if user.volunteer_tracks else []
+def _assigned_organizations(user: models.User) -> list[str]:
+    tracks = user.assigned_tracks.split(",") if user.assigned_tracks else []
     if not tracks and user.organization:
         tracks = [user.organization.name]
     return [name for name in tracks if name]
@@ -94,10 +94,12 @@ def create_reimbursement(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    allowed = _allowed_organizations(current_user)
-    if allowed and organization not in allowed:
+    assigned = _assigned_organizations(current_user)
+    if assigned and organization not in assigned:
         raise HTTPException(status_code=400, detail="组织不在允许范围内")
-    organization_name = organization if allowed else (current_user.organization.name if current_user.organization else organization)
+    organization_name = (
+        organization if assigned else (current_user.organization.name if current_user.organization else "待分配")
+    )
     reimbursement = _persist_reimbursement(
         db,
         reimbursement=None,
@@ -152,10 +154,14 @@ def update_reimbursement(
         raise HTTPException(status_code=404, detail="Reimbursement not found")
     if reimbursement.status == models.ReimbursementStatus.approved:
         raise HTTPException(status_code=400, detail="Approved reimbursements cannot be edited")
-    allowed = _allowed_organizations(current_user)
-    if allowed and organization not in allowed:
+    assigned = _assigned_organizations(current_user)
+    if assigned and organization not in assigned:
         raise HTTPException(status_code=400, detail="组织不在允许范围内")
-    organization_name = organization if allowed else (current_user.organization.name if current_user.organization else reimbursement.organization)
+    organization_name = (
+        organization
+        if assigned
+        else (current_user.organization.name if current_user.organization else reimbursement.organization)
+    )
     reimbursement = _persist_reimbursement(
         db,
         reimbursement=reimbursement,

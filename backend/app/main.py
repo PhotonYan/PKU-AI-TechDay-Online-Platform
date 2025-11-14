@@ -51,6 +51,7 @@ def startup_event():
         bool_def = "BOOLEAN DEFAULT 0" if dialect == "sqlite" else "BOOLEAN DEFAULT FALSE"
         ensure_column(db, "users", "vote_counter_opt_in", bool_def)
         ensure_column(db, "users", "student_id", "VARCHAR")
+        ensure_column(db, "users", "assigned_tracks", "VARCHAR")
         ensure_column(db, "papers", "sequence_no", "INTEGER")
         admin_user = db.query(models.User).filter(models.User.email == settings.admin_email).first()
         if not admin_user:

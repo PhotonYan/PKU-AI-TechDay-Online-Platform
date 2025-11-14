@@ -15,6 +15,7 @@ def list_users(db: Session = Depends(get_db), admin: models.User = Depends(requi
     result = []
     for user in users:
         tracks = user.volunteer_tracks.split(",") if user.volunteer_tracks else []
+        assigned_tracks = user.assigned_tracks.split(",") if user.assigned_tracks else []
         result.append(
             {
                 "id": user.id,
@@ -26,6 +27,7 @@ def list_users(db: Session = Depends(get_db), admin: models.User = Depends(requi
                 "role_template_id": user.role_template_id,
                 "vote_counter_opt_in": user.vote_counter_opt_in,
                 "volunteer_tracks": tracks,
+                "assigned_tracks": assigned_tracks,
             }
         )
     return result
@@ -52,12 +54,12 @@ def update_user(
             if not organization:
                 raise HTTPException(status_code=404, detail="Organization not found")
             user.organization_id = payload.organization_id
-    if "volunteer_tracks" in payload_data:
-        track_list = payload.volunteer_tracks or []
-        user.volunteer_tracks = ",".join(track_list)
-        if track_list:
+    if "assigned_tracks" in payload_data:
+        assigned_list = payload.assigned_tracks or []
+        user.assigned_tracks = ",".join(assigned_list)
+        if assigned_list:
             first_org = (
-                db.query(models.Organization).filter(models.Organization.name == track_list[0]).first()
+                db.query(models.Organization).filter(models.Organization.name == assigned_list[0]).first()
             )
             user.organization_id = first_org.id if first_org else None
         else:
@@ -101,13 +103,14 @@ def delete_user(
 def export_users(db: Session = Depends(get_db), admin: models.User = Depends(require_admin)):
     users = db.query(models.User).all()
     lines = [
-        "id,email,name,role,student_id,volunteer_tracks,role_template_id,vote_counter_opt_in,availability_slots"
+        "id,email,name,role,student_id,volunteer_tracks,assigned_tracks,role_template_id,vote_counter_opt_in,availability_slots"
     ]
     for user in users:
         tracks = user.volunteer_tracks or ""
+        assigned = user.assigned_tracks or ""
         lines.append(
             f'{user.id},"{user.email}","{user.name}",{user.role.value},"{user.student_id or ""}",'
-            f'"{tracks}",{user.role_template_id or ""},{int(bool(user.vote_counter_opt_in))},"{user.availability_slots or ""}"'
+            f'"{tracks}","{assigned}",{user.role_template_id or ""},{int(bool(user.vote_counter_opt_in))},"{user.availability_slots or ""}"'
         )
     csv_content = "\n".join(lines)
     return Response(
