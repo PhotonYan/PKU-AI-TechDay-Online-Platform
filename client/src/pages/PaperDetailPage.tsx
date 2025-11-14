@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { apiClient } from "../api/client";
-import { useAuth } from "../context/AuthContext";
 
 interface VoteLog {
   id: number;
@@ -14,14 +13,22 @@ interface VoteLog {
 
 interface PaperDetail {
   id: number;
-  sequence_no?: number;
   title: string;
-  author: string;
+  author?: string | null;
   abstract: string;
-  direction: string;
+  direction?: string | null;
+  direction_id?: number | null;
   contact: string;
   venue: string;
+  track: string;
+  status: string;
+  publication_status: string;
+  archive_consent: boolean;
+  paper_url?: string | null;
+  poster_path?: string | null;
+  award?: string | null;
   showVotes: boolean;
+  canViewLogs: boolean;
   vote_innovation?: number;
   vote_impact?: number;
   vote_feasibility?: number;
@@ -37,12 +44,10 @@ const fieldLabels: Record<string, string> = {
 const PaperDetailPage = () => {
   const { id } = useParams();
   const [paper, setPaper] = useState<PaperDetail | null>(null);
-  const { user } = useAuth();
-  const canViewLogs = Boolean(user && (user.role === "admin" || user.role_template_can_edit_vote));
 
   useEffect(() => {
     if (!id) return;
-    apiClient(`/api/papers/${id}`).then(setPaper);
+    apiClient(`/api/submissions/${id}`).then(setPaper);
   }, [id]);
 
   if (!paper) return <div>加载中...</div>;
@@ -50,13 +55,16 @@ const PaperDetailPage = () => {
   return (
     <div className="bg-white p-6 rounded shadow space-y-4">
       <div>
-        <div className="flex items-center gap-3 text-slate-500 text-sm">
-          <div className="font-bold text-lg text-slate-700">{paper.sequence_no ?? "-"}</div>
-          <div>编号</div>
-        </div>
         <h1 className="text-2xl font-semibold mb-2">{paper.title}</h1>
-        <div className="text-sm text-slate-600">
-          作者：{paper.author} · 方向：{paper.direction}
+        <div className="text-sm text-slate-600 flex flex-wrap gap-3">
+          <span>作者：{paper.author || "-"}</span>
+          <span>方向：{paper.direction || "未分类"}</span>
+          <span>Track：{paper.track === "poster" ? "Poster" : "Demo"}</span>
+          {paper.award && <span className="text-amber-600">获奖：{paper.award}</span>}
+        </div>
+        <div className="text-xs text-slate-500 mt-1 flex gap-3">
+          <span>审核状态：{paper.status === "approved" ? "通过" : paper.status === "pending" ? "待审核" : "未通过"}</span>
+          <span>投稿状态：{paper.publication_status === "published" ? "已发表" : "中稿"}</span>
         </div>
       </div>
       <div>
@@ -71,6 +79,30 @@ const PaperDetailPage = () => {
         <div className="bg-slate-50 p-3 rounded">
           <div className="font-medium">期刊/会议</div>
           <div>{paper.venue}</div>
+        </div>
+        <div className="bg-slate-50 p-3 rounded">
+          <div className="font-medium">Paper URL</div>
+          {paper.paper_url ? (
+            <a className="text-blue-600" href={paper.paper_url} target="_blank" rel="noreferrer">
+              {paper.paper_url}
+            </a>
+          ) : (
+            <div>未填写</div>
+          )}
+        </div>
+        <div className="bg-slate-50 p-3 rounded">
+          <div className="font-medium">Poster PDF</div>
+          {paper.poster_path ? (
+            <a className="text-blue-600" href={`/${paper.poster_path}`} target="_blank" rel="noreferrer">
+              点击查看
+            </a>
+          ) : (
+            <div>未上传</div>
+          )}
+        </div>
+        <div className="bg-slate-50 p-3 rounded">
+          <div className="font-medium">Archive 授权</div>
+          <div>{paper.archive_consent ? "已授权" : "未授权"}</div>
         </div>
       </div>
       {paper.showVotes && (
@@ -87,7 +119,7 @@ const PaperDetailPage = () => {
           ))}
         </div>
       )}
-      {canViewLogs && (
+      {paper.canViewLogs && (
         <div>
           <h2 className="font-semibold mb-2">修改历史</h2>
           <div className="space-y-2 text-sm">

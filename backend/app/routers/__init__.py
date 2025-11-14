@@ -1,9 +1,11 @@
-from . import auth, reimbursements, papers, volunteers, admin
+from . import auth, reimbursements, volunteers, admin, authors, submissions, directions
 
 __all__ = [
     "auth",
     "reimbursements",
-    "papers",
     "volunteers",
     "admin",
+    "authors",
+    "submissions",
+    "directions",
 ]

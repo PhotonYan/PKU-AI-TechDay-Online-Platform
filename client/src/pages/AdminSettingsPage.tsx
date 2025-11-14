@@ -14,6 +14,12 @@ interface RoleTemplate {
   can_edit_vote_data: boolean;
 }
 
+interface Direction {
+  id: number;
+  name: string;
+  description?: string | null;
+}
+
 interface UserRow {
   id: number;
   email: string;
@@ -31,6 +37,7 @@ const AdminSettingsPage = () => {
   const { token, user: authUser } = useAuth();
   const [orgs, setOrgs] = useState<Organization[]>([]);
   const [roles, setRoles] = useState<RoleTemplate[]>([]);
+  const [directions, setDirections] = useState<Direction[]>([]);
   const [users, setUsers] = useState<UserRow[]>([]);
   const [filters, setFilters] = useState({ role: "all", org: "all", template: "all" });
   const [settings, setSettings] = useState<{
@@ -43,11 +50,15 @@ const AdminSettingsPage = () => {
   const [orgEditForm, setOrgEditForm] = useState({ name: "", responsibility: "" });
   const [roleForm, setRoleForm] = useState({ name: "", can_edit_vote_data: false });
   const [showOrgEditor, setShowOrgEditor] = useState(true);
+  const [directionForm, setDirectionForm] = useState({ name: "", description: "" });
+  const [editingDirectionId, setEditingDirectionId] = useState<number | null>(null);
+  const [directionEditForm, setDirectionEditForm] = useState({ name: "", description: "" });
 
   const loadAll = () => {
     if (!token) return;
     apiClient("/api/admin/organizations", { token }).then(setOrgs);
     apiClient("/api/admin/roles", { token }).then(setRoles);
+    apiClient("/api/admin/directions", { token }).then(setDirections);
     apiClient("/api/admin/users", { token }).then(setUsers);
     apiClient("/api/admin/settings/votes", { token }).then((data) =>
       setSettings({
@@ -104,6 +115,41 @@ const AdminSettingsPage = () => {
     loadAll();
   };
 
+  const submitDirection = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!token) return;
+    await apiClient("/api/admin/directions", { method: "POST", token, body: JSON.stringify(directionForm) });
+    setDirectionForm({ name: "", description: "" });
+    loadAll();
+  };
+
+  const startEditDirection = (direction: Direction) => {
+    setEditingDirectionId(direction.id);
+    setDirectionEditForm({ name: direction.name, description: direction.description || "" });
+  };
+
+  const saveDirectionEdit = async () => {
+    if (!token || editingDirectionId === null) return;
+    await apiClient(`/api/admin/directions/${editingDirectionId}`, {
+      method: "PUT",
+      token,
+      body: JSON.stringify(directionEditForm),
+    });
+    setEditingDirectionId(null);
+    loadAll();
+  };
+
+  const deleteDirection = async (directionId: number) => {
+    if (!token) return;
+    if (!window.confirm("确认删除该方向？")) return;
+    try {
+      await apiClient(`/api/admin/directions/${directionId}`, { method: "DELETE", token });
+      loadAll();
+    } catch (err) {
+      alert((err as Error).message);
+    }
+  };
+
   const updateUser = async (userId: number, payload: Partial<UserRow>) => {
     if (!token) return;
     const bodyPayload: Record<string, unknown> = {};
@@ -145,13 +191,35 @@ const AdminSettingsPage = () => {
     updateUser(user.id, { assigned_tracks: next });
   };
 
-  const handleTemplateChange = (userId: number, value: string) => {
-    if (value === "0") {
-      updateUser(userId, { role_template_id: null });
-    } else {
-      updateUser(userId, { role_template_id: Number(value) });
-    }
+  const getVoteButtonClass = (user: UserRow) => {
+    const voteTemplateId = settings.vote_edit_role_template_id;
+    const isSelected = Boolean(voteTemplateId && user.role_template_id === voteTemplateId);
+    const volunteered = Boolean(user.vote_counter_opt_in);
+    if (isSelected) return "bg-blue-600 text-white border-blue-600";
+    if (volunteered) return "bg-blue-50 text-blue-700 border-blue-200";
+    return "bg-white text-slate-700 border-slate-300";
   };
+
+  const handleVoteButtonClick = (user: UserRow) => {
+    if (authUser?.id === user.id || user.role === "author") return;
+    const voteTemplateId = settings.vote_edit_role_template_id;
+    const isSelected = Boolean(voteTemplateId && user.role_template_id === voteTemplateId);
+    const volunteered = Boolean(user.vote_counter_opt_in);
+    if (!volunteered) {
+      updateUser(user.id, { vote_counter_opt_in: true });
+      return;
+    }
+    if (!isSelected) {
+      if (!voteTemplateId) {
+        alert("请先在列表展示设置中指定可计票的角色模板");
+        return;
+      }
+      updateUser(user.id, { role_template_id: voteTemplateId });
+      return;
+    }
+    updateUser(user.id, { vote_counter_opt_in: false, role_template_id: null });
+  };
+
 
   const filteredUsers = users.filter((u) => {
     if (filters.role !== "all" && u.role !== filters.role) return false;
@@ -161,21 +229,6 @@ const AdminSettingsPage = () => {
       return false;
     return true;
   });
-
-  const uploadPaperCsv = async (file: File) => {
-    if (!token) return;
-    const form = new FormData();
-    form.append("file", file);
-    await apiClient("/api/papers/import", { method: "POST", body: form, token });
-    alert("上传成功，成果展示已刷新");
-  };
-
-  const clearPapers = async () => {
-    if (!token) return;
-    if (!window.confirm("确定清空全部成果展示数据？")) return;
-    await apiClient("/api/admin/papers/clear", { method: "POST", token });
-    alert("成果展示数据已清空");
-  };
 
   const exportUsers = async () => {
     if (!token) return;
@@ -246,17 +299,6 @@ const AdminSettingsPage = () => {
         </div>
       </section>
 
-      <section className="bg-white p-6 rounded shadow space-y-3">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold">成果展示数据管理</h2>
-          <button className="px-3 py-2 border rounded text-xs text-red-600" type="button" onClick={clearPapers}>
-            清空当前数据
-          </button>
-        </div>
-        <label className="text-sm text-slate-600">上传 CSV（首列为“序号”）</label>
-        <input type="file" accept=".csv" onChange={(e) => e.target.files && uploadPaperCsv(e.target.files[0])} />
-      </section>
-
       <section className="bg-white p-6 rounded shadow">
         <h2 className="text-lg font-semibold mb-3">组织管理</h2>
         <form className="grid gap-3 md:grid-cols-[0.7fr,2fr,1fr]" onSubmit={submitOrg}>
@@ -313,6 +355,68 @@ const AdminSettingsPage = () => {
         )}
       </section>
 
+      <section className="bg-white p-6 rounded shadow">
+        <h2 className="text-lg font-semibold mb-3">方向管理</h2>
+        <form className="grid gap-3 md:grid-cols-[0.7fr,2fr,1fr]" onSubmit={submitDirection}>
+          <input
+            className="border rounded px-3 py-2"
+            placeholder="方向名称"
+            value={directionForm.name}
+            onChange={(e) => setDirectionForm({ ...directionForm, name: e.target.value })}
+            required
+          />
+          <input
+            className="border rounded px-3 py-2"
+            placeholder="描述"
+            value={directionForm.description}
+            onChange={(e) => setDirectionForm({ ...directionForm, description: e.target.value })}
+          />
+          <button className="bg-emerald-600 text-white px-4 py-2 rounded" type="submit">
+            新增
+          </button>
+        </form>
+        <ul className="mt-3 text-sm space-y-1">
+          {directions.map((direction) => (
+            <li key={direction.id} className="flex items-center justify-between">
+              <span>
+                {direction.name} — {direction.description || "未填写"}
+              </span>
+              <div className="space-x-3 text-xs">
+                <button className="text-blue-600" type="button" onClick={() => startEditDirection(direction)}>
+                  编辑
+                </button>
+                <button className="text-red-600" type="button" onClick={() => deleteDirection(direction.id)}>
+                  删除
+                </button>
+              </div>
+            </li>
+          ))}
+        </ul>
+        {editingDirectionId !== null && (
+          <div className="mt-4 border rounded p-3 space-y-2 bg-slate-50">
+            <div className="text-sm font-medium">编辑方向</div>
+            <input
+              className="border rounded px-3 py-2 w-full"
+              value={directionEditForm.name}
+              onChange={(e) => setDirectionEditForm({ ...directionEditForm, name: e.target.value })}
+            />
+            <input
+              className="border rounded px-3 py-2 w-full"
+              value={directionEditForm.description}
+              onChange={(e) => setDirectionEditForm({ ...directionEditForm, description: e.target.value })}
+            />
+            <div className="flex gap-2">
+              <button className="px-3 py-1 bg-blue-600 text-white rounded" type="button" onClick={saveDirectionEdit}>
+                保存
+              </button>
+              <button className="px-3 py-1 border rounded" type="button" onClick={() => setEditingDirectionId(null)}>
+                取消
+              </button>
+            </div>
+          </div>
+        )}
+      </section>
+
       
 
       <section className="bg-white p-6 rounded shadow overflow-x-auto">
@@ -329,7 +433,7 @@ const AdminSettingsPage = () => {
         <table className="min-w-full text-sm table-fixed">
           <thead>
             <tr>
-              {["姓名", "邮箱", "角色", "组织", "角色模板", "计票志愿者", "操作"].map((label) => (
+              {["姓名", "邮箱", "角色", "组织", "计票志愿者", "操作"].map((label) => (
                 <th key={label} className="text-left px-2 py-2">
                   {label}
                 </th>
@@ -396,6 +500,7 @@ const AdminSettingsPage = () => {
                   >
                     <option value="volunteer">志愿者</option>
                     <option value="admin">管理员</option>
+                    <option value="author">作者</option>
                   </select>
                 </td>
                 <td className="px-2 py-2 max-w-xs">
@@ -432,30 +537,18 @@ const AdminSettingsPage = () => {
                   )}
                 </td>
                 <td className="px-2 py-2">
-                  <select
-                    value={u.role_template_id || 0}
-                    onChange={(e) => handleTemplateChange(u.id, e.target.value)}
-                    className="border rounded px-2"
-                    disabled={authUser?.id === u.id}
-                  >
-                    <option value={0}>无</option>
-                    {roles.map((role) => (
-                      <option key={role.id} value={role.id}>
-                        {role.name}
-                      </option>
-                    ))}
-                  </select>
-                </td>
-                <td className="px-2 py-2">
-                  <label className="flex items-center gap-1 text-xs">
-                    <input
-                      type="checkbox"
-                      checked={Boolean(u.vote_counter_opt_in)}
-                      onChange={(e) => updateUser(u.id, { vote_counter_opt_in: e.target.checked })}
+                  {u.role === "author" ? (
+                    <span className="text-xs text-slate-400">作者无需计票</span>
+                  ) : (
+                    <button
+                      className={`px-3 py-1 border rounded text-xs ${getVoteButtonClass(u)}`}
+                      type="button"
                       disabled={authUser?.id === u.id}
-                    />
-                    自愿
-                  </label>
+                      onClick={() => handleVoteButtonClick(u)}
+                    >
+                      计票
+                    </button>
+                  )}
                 </td>
                 <td className="px-2 py-2">
                   <button

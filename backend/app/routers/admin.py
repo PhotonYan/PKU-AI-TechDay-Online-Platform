@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.orm import Session
@@ -120,10 +120,10 @@ def export_users(db: Session = Depends(get_db), admin: models.User = Depends(req
     )
 
 
-@router.post("/papers/clear")
-def clear_papers(db: Session = Depends(get_db), admin: models.User = Depends(require_admin)):
-    db.query(models.PaperVoteLog).delete()
-    db.query(models.Paper).delete()
+@router.post("/submissions/clear")
+def clear_submissions(db: Session = Depends(get_db), admin: models.User = Depends(require_admin)):
+    db.query(models.SubmissionVoteLog).delete()
+    db.query(models.Submission).delete()
     db.commit()
     return {"status": "cleared"}
 
@@ -164,6 +164,63 @@ def update_org(
     db.commit()
     db.refresh(organization)
     return organization
+
+
+@router.get("/directions", response_model=List[schemas.DirectionResponse])
+def list_directions(db: Session = Depends(get_db), admin: models.User = Depends(require_admin)):
+    return db.query(models.Direction).order_by(models.Direction.name).all()
+
+
+@router.post("/directions", response_model=schemas.DirectionResponse)
+def create_direction(
+    payload: schemas.DirectionCreate,
+    db: Session = Depends(get_db),
+    admin: models.User = Depends(require_admin),
+):
+    direction = models.Direction(name=payload.name, description=payload.description)
+    db.add(direction)
+    db.commit()
+    db.refresh(direction)
+    return direction
+
+
+@router.put("/directions/{direction_id}", response_model=schemas.DirectionResponse)
+def update_direction(
+    direction_id: int,
+    payload: schemas.DirectionUpdate,
+    db: Session = Depends(get_db),
+    admin: models.User = Depends(require_admin),
+):
+    direction = db.query(models.Direction).filter(models.Direction.id == direction_id).first()
+    if not direction:
+        raise HTTPException(status_code=404, detail="Direction not found")
+    if payload.name is not None:
+        direction.name = payload.name
+    if payload.description is not None:
+        direction.description = payload.description
+    db.add(direction)
+    db.commit()
+    db.refresh(direction)
+    return direction
+
+
+@router.delete("/directions/{direction_id}")
+def delete_direction(
+    direction_id: int,
+    db: Session = Depends(get_db),
+    admin: models.User = Depends(require_admin),
+):
+    direction = db.query(models.Direction).filter(models.Direction.id == direction_id).first()
+    if not direction:
+        raise HTTPException(status_code=404, detail="Direction not found")
+    has_submissions = (
+        db.query(models.Submission).filter(models.Submission.direction_id == direction_id).first() is not None
+    )
+    if has_submissions:
+        raise HTTPException(status_code=400, detail="方向下仍有投稿，无法删除")
+    db.delete(direction)
+    db.commit()
+    return {"status": "deleted"}
 
 
 @router.get("/roles", response_model=List[schemas.RoleTemplateResponse])
@@ -215,3 +272,87 @@ def update_vote_settings(
     db.commit()
     db.refresh(settings_row)
     return payload
+
+
+@router.get("/submissions")
+def admin_list_submissions(
+    track: Optional[models.SubmissionTrack] = None,
+    status: Optional[models.SubmissionReviewStatus] = None,
+    db: Session = Depends(get_db),
+    admin: models.User = Depends(require_admin),
+):
+    query = db.query(models.Submission)
+    if track:
+        query = query.filter(models.Submission.track == track)
+    if status:
+        query = query.filter(models.Submission.review_status == status)
+    rows = query.order_by(models.Submission.created_at.desc()).all()
+    data = []
+    for submission in rows:
+        data.append(
+            {
+                "id": submission.id,
+                "title": submission.title,
+                "direction": submission.direction.name if submission.direction else None,
+                "direction_id": submission.direction_id,
+                "author": submission.author.name if submission.author else None,
+                "venue": submission.venue,
+                "status": submission.review_status.value,
+                "track": submission.track.value,
+                "publication_status": submission.publication_status.value,
+                "award": submission.award,
+            }
+        )
+    return data
+
+
+@router.patch("/submissions/{submission_id}")
+def admin_update_submission(
+    submission_id: int,
+    payload: schemas.SubmissionAdminUpdate,
+    db: Session = Depends(get_db),
+    admin: models.User = Depends(require_admin),
+):
+    submission = db.query(models.Submission).filter(models.Submission.id == submission_id).first()
+    if not submission:
+        raise HTTPException(status_code=404, detail="Submission not found")
+    payload_data = payload.dict(exclude_unset=True)
+    if "direction_id" in payload_data:
+        if payload.direction_id is None:
+            submission.direction_id = None
+        else:
+            direction = db.query(models.Direction).filter(models.Direction.id == payload.direction_id).first()
+            if not direction:
+                raise HTTPException(status_code=404, detail="Direction not found")
+            submission.direction_id = payload.direction_id
+    if "review_status" in payload_data:
+        submission.review_status = payload.review_status
+    if "award" in payload_data:
+        submission.award = payload.award
+    if "track" in payload_data and payload.track is not None:
+        submission.track = payload.track
+    if "publication_status" in payload_data and payload.publication_status is not None:
+        submission.publication_status = payload.publication_status
+    db.add(submission)
+    db.commit()
+    db.refresh(submission)
+    return {
+        "id": submission.id,
+        "status": submission.review_status.value,
+        "award": submission.award,
+        "track": submission.track.value,
+    }
+
+
+@router.delete("/submissions/{submission_id}")
+def admin_delete_submission(
+    submission_id: int,
+    db: Session = Depends(get_db),
+    admin: models.User = Depends(require_admin),
+):
+    submission = db.query(models.Submission).filter(models.Submission.id == submission_id).first()
+    if not submission:
+        raise HTTPException(status_code=404, detail="Submission not found")
+    db.delete(submission)
+    db.commit()
+    return {"status": "deleted"}

@@ -1,13 +1,14 @@
 import { ReactNode, createContext, useContext, useEffect, useState } from "react";
 import { apiClient } from "../api/client";
 
-type Role = "volunteer" | "admin";
+type Role = "volunteer" | "admin" | "author";
 
 export interface AuthUser {
   id: number;
   email: string;
   name: string;
   role: Role;
+  school?: string | null;
   organization?: string | null;
   responsibility?: string | null;
   role_template_id?: number | null;

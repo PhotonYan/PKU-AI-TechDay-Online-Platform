@@ -59,11 +59,19 @@ const LoginPage = () => {
           登录
         </button>
       </form>
-      <div className="text-center text-sm text-slate-600">
-        还没有账号？
-        <Link className="text-blue-600 ml-1" to="/volunteer/register">
-          注册为志愿者
-        </Link>
+      <div className="text-center text-sm text-slate-600 space-y-1">
+        <div>
+          还没有账号？
+          <Link className="text-blue-600 ml-1" to="/volunteer/register">
+            注册为志愿者
+          </Link>
+        </div>
+        <div>
+          想投稿参展？
+          <Link className="text-blue-600 ml-1" to="/author/register">
+            作者注册
+          </Link>
+        </div>
       </div>
     </div>
   );

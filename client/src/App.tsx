@@ -7,6 +7,10 @@ import ReimbursementPage from "./pages/ReimbursementPage";
 import VolunteerRegisterPage from "./pages/VolunteerRegisterPage";
 import VolunteerProfilePage from "./pages/VolunteerProfilePage";
 import AdminSettingsPage from "./pages/AdminSettingsPage";
+import AuthorRegisterPage from "./pages/AuthorRegisterPage";
+import AuthorProfilePage from "./pages/AuthorProfilePage";
+import AuthorSubmissionFormPage from "./pages/AuthorSubmissionFormPage";
+import AdminExhibitPage from "./pages/AdminExhibitPage";
 
 const RequireAuth = ({ children, roles }: { children: JSX.Element; roles?: string[] }) => {
   const { token, user } = useAuth();
@@ -21,19 +25,31 @@ const RequireAuth = ({ children, roles }: { children: JSX.Element; roles?: strin
 
 const App = () => {
   const { user, logout } = useAuth();
+  const profileLink = user?.role === "author" ? "/author/profile" : "/volunteer/profile";
   return (
     <div className="min-h-screen flex flex-col">
       <header className="bg-white shadow-sm">
         <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
           <nav className="space-x-4 text-sm font-medium">
             <Link to="/">成果展示</Link>
-            {user && <Link to="/reimbursements">报销管理</Link>}
-            {user?.role === "admin" && <Link to="/admin/settings">后台管理</Link>}
+            {user && user.role !== "author" && <Link to="/reimbursements">报销管理</Link>}
+            {user?.role === "author" && (
+              <>
+                <Link to="/author/profile">作者中心</Link>
+                <Link to="/author/submissions/new">上传作品</Link>
+              </>
+            )}
+            {user?.role === "admin" && (
+              <>
+                <Link to="/admin/settings">后台管理</Link>
+                <Link to="/admin/exhibits">参展管理</Link>
+              </>
+            )}
           </nav>
           <div className="text-sm">
             {user ? (
               <div className="flex items-center space-x-3">
-                <Link to="/volunteer/profile" className="text-slate-800 font-medium">
+                <Link to={profileLink} className="text-slate-800 font-medium">
                   {user.name}（{user.role}）
                 </Link>
                 <button className="text-blue-600" onClick={logout}>
@@ -53,10 +69,11 @@ const App = () => {
           <Route path="/" element={<PaperListPage />} />
           <Route path="/papers/:id" element={<PaperDetailPage />} />
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/author/register" element={<AuthorRegisterPage />} />
           <Route
             path="/reimbursements"
             element={
-              <RequireAuth>
+              <RequireAuth roles={["volunteer", "admin"]}>
                 <ReimbursementPage />
               </RequireAuth>
             }
@@ -65,8 +82,32 @@ const App = () => {
           <Route
             path="/volunteer/profile"
             element={
-              <RequireAuth>
+              <RequireAuth roles={["volunteer", "admin"]}>
                 <VolunteerProfilePage />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/author/profile"
+            element={
+              <RequireAuth roles={["author"]}>
+                <AuthorProfilePage />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/author/submissions/new"
+            element={
+              <RequireAuth roles={["author"]}>
+                <AuthorSubmissionFormPage />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/author/submissions/:id/edit"
+            element={
+              <RequireAuth roles={["author"]}>
+                <AuthorSubmissionFormPage />
               </RequireAuth>
             }
           />
@@ -75,6 +116,14 @@ const App = () => {
             element={
               <RequireAuth roles={["admin"]}>
                 <AdminSettingsPage />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/admin/exhibits"
+            element={
+              <RequireAuth roles={["admin"]}>
+                <AdminExhibitPage />
               </RequireAuth>
             }
           />

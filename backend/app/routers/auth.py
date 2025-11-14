@@ -25,6 +25,7 @@ def register_user(payload: schemas.UserCreate, db: Session = Depends(get_db)):
         email=payload.email,
         name=payload.name,
         password_hash=get_password_hash(payload.password),
+        school=payload.school,
         college=payload.college,
         grade=payload.grade,
         student_id=payload.student_id,

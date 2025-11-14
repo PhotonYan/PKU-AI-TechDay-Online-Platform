@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { apiClient } from "../api/client";
 
 const timeSlots = ["13:00", "14:00", "15:00", "16:00", "17:00"];
@@ -16,6 +16,7 @@ const VolunteerRegisterPage = () => {
     name: "",
     email: "",
     password: "",
+    school: "",
     college: "",
     grade: "",
     student_id: "",
@@ -76,6 +77,7 @@ const VolunteerRegisterPage = () => {
           { key: "name", label: "姓名" },
           { key: "email", label: "邮箱", type: "email" },
           { key: "password", label: "密码", type: "password" },
+          { key: "school", label: "学校" },
           { key: "college", label: "学院" },
           { key: "grade", label: "届别" },
           { key: "student_id", label: "学号" },
@@ -132,6 +134,12 @@ const VolunteerRegisterPage = () => {
           {submitting ? "提交中..." : "提交报名"}
         </button>
       </form>
+      <div className="text-sm text-slate-600">
+        想作为作者参展？
+        <Link className="text-blue-600 ml-1" to="/author/register">
+          前往作者注册
+        </Link>
+      </div>
     </div>
   );
 };

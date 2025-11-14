@@ -1,6 +1,8 @@
 import logging
 
-from fastapi import Depends, HTTPException, status
+from typing import Optional
+
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 
@@ -48,6 +50,34 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
 def require_admin(user: models.User = Depends(get_current_user)) -> models.User:
     if user.role != models.UserRole.admin:
         raise HTTPException(status_code=403, detail="Admin privileges required")
+    return user
+
+
+def require_author(user: models.User = Depends(get_current_user)) -> models.User:
+    if user.role != models.UserRole.author:
+        raise HTTPException(status_code=403, detail="Author privileges required")
+    return user
+
+
+def get_optional_user(request: Request, db: Session = Depends(get_db)) -> Optional[models.User]:
+    auth_header = request.headers.get("Authorization")
+    if not auth_header:
+        return None
+    try:
+        scheme, token = auth_header.split(" ", 1)
+    except ValueError:
+        return None
+    if scheme.lower() != "bearer":
+        return None
+    try:
+        payload = decode_token(token)
+        user_id = payload.get("sub")
+        if user_id is None:
+            return None
+        user_id = int(user_id)
+    except Exception:  # noqa: BLE001
+        return None
+    user = db.query(models.User).filter(models.User.id == user_id).first()
     return user
 
 

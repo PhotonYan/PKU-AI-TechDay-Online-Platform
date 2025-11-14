@@ -9,7 +9,7 @@ from .config import get_settings
 from .database import Base, engine, SessionLocal
 from .auth import get_password_hash
 from . import models
-from .routers import auth, reimbursements, papers, volunteers, admin
+from .routers import auth, reimbursements, volunteers, admin, authors, submissions, directions
 
 settings = get_settings()
 Path(settings.upload_dir).mkdir(parents=True, exist_ok=True)
@@ -26,8 +26,10 @@ app.add_middleware(
 
 app.include_router(auth.router)
 app.include_router(volunteers.router)
+app.include_router(authors.router)
 app.include_router(reimbursements.router)
-app.include_router(papers.router)
+app.include_router(submissions.router)
+app.include_router(directions.router)
 app.include_router(admin.router)
 
 app.mount("/uploads", StaticFiles(directory=settings.upload_dir), name="uploads")
@@ -52,7 +54,7 @@ def startup_event():
         ensure_column(db, "users", "vote_counter_opt_in", bool_def)
         ensure_column(db, "users", "student_id", "VARCHAR")
         ensure_column(db, "users", "assigned_tracks", "VARCHAR")
-        ensure_column(db, "papers", "sequence_no", "INTEGER")
+        ensure_column(db, "users", "school", "VARCHAR")
         admin_user = db.query(models.User).filter(models.User.email == settings.admin_email).first()
         if not admin_user:
             admin_user = models.User(

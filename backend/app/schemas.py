@@ -5,7 +5,13 @@ from typing import List, Optional
 
 from pydantic import BaseModel, EmailStr
 
-from .models import ReimbursementStatus, UserRole
+from .models import (
+    ReimbursementStatus,
+    SubmissionPublicationStatus,
+    SubmissionReviewStatus,
+    SubmissionTrack,
+    UserRole,
+)
 
 
 class Token(BaseModel):
@@ -25,6 +31,7 @@ class OrganizationResponse(BaseModel):
 class UserBase(BaseModel):
     email: str
     name: str
+    school: Optional[str] = None
     college: Optional[str] = None
     grade: Optional[str] = None
     student_id: Optional[str] = None
@@ -44,12 +51,23 @@ class UserCreate(BaseModel):
     email: EmailStr
     name: str
     password: str
+    school: Optional[str] = None
     college: str
     grade: str
     student_id: Optional[str] = None
     volunteer_tracks: List[str]
     availability_slots: List[str]
     vote_counter_opt_in: bool = False
+
+
+class AuthorRegister(BaseModel):
+    email: EmailStr
+    name: str
+    password: str
+    school: str
+    college: str
+    grade: str
+    student_id: str
 
 
 class UserResponse(UserBase):
@@ -90,33 +108,83 @@ class ReimbursementReview(BaseModel):
     admin_note: Optional[str] = None
 
 
-class PaperBase(BaseModel):
-    title: str
-    author: str
-    abstract: str
-    direction: str
-    contact: str
-    venue: str
+class DirectionBase(BaseModel):
+    name: str
+    description: Optional[str] = None
 
 
-class PaperResponse(PaperBase):
+class DirectionCreate(DirectionBase):
+    pass
+
+
+class DirectionUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+
+
+class DirectionResponse(DirectionBase):
     id: int
-    vote_innovation: float
-    vote_impact: float
-    vote_feasibility: float
-    logs: Optional[List["PaperVoteLogResponse"]] = None
 
     class Config:
         orm_mode = True
 
 
-class PaperVoteUpdate(BaseModel):
+class SubmissionBase(BaseModel):
+    title: str
+    abstract: str
+    contact: str
+    venue: str
+    track: SubmissionTrack
+    archive_consent: bool = True
+    direction_id: Optional[int] = None
+    paper_url: Optional[str] = None
+    publication_status: SubmissionPublicationStatus
+
+
+class SubmissionResponse(SubmissionBase):
+    id: int
+    review_status: SubmissionReviewStatus
+    award: Optional[str]
+    poster_path: Optional[str]
+    direction_name: Optional[str]
+    author_name: str
+    vote_innovation: float
+    vote_impact: float
+    vote_feasibility: float
+    updated_at: datetime
+
+    class Config:
+        orm_mode = True
+
+
+class SubmissionDetailResponse(SubmissionResponse):
+    logs: Optional[List["SubmissionVoteLogResponse"]] = None
+
+
+class SubmissionListItem(BaseModel):
+    id: int
+    title: str
+    direction_name: Optional[str]
+    author_name: str
+    venue: str
+    status: SubmissionReviewStatus
+    track: SubmissionTrack
+    archive_consent: bool
+    paper_url: Optional[str]
+    poster_path: Optional[str]
+    award: Optional[str]
+    vote_innovation: Optional[float]
+    vote_impact: Optional[float]
+    vote_feasibility: Optional[float]
+
+
+class SubmissionVoteUpdate(BaseModel):
     vote_innovation: Optional[float] = None
     vote_impact: Optional[float] = None
     vote_feasibility: Optional[float] = None
 
 
-class PaperVoteLogResponse(BaseModel):
+class SubmissionVoteLogResponse(BaseModel):
     id: int
     field_name: str
     old_value: Optional[float]
@@ -125,7 +193,15 @@ class PaperVoteLogResponse(BaseModel):
     user_name: Optional[str]
 
 
-PaperResponse.update_forward_refs()
+class SubmissionAdminUpdate(BaseModel):
+    review_status: Optional[SubmissionReviewStatus] = None
+    award: Optional[str] = None
+    track: Optional[SubmissionTrack] = None
+    direction_id: Optional[int] = None
+    publication_status: Optional[SubmissionPublicationStatus] = None
+
+
+SubmissionDetailResponse.update_forward_refs()
 
 
 class VoteSettings(BaseModel):

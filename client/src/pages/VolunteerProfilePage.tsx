@@ -32,6 +32,7 @@ const VolunteerProfilePage = () => {
           [
             ["姓名", profile.name],
             ["邮箱", profile.email],
+            ["学校", profile.school],
             ["学院", profile.college],
             ["界别", profile.grade],
             ["学号", profile.student_id],
