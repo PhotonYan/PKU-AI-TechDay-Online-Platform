@@ -298,7 +298,7 @@ const AwardsManagementPage = () => {
           <thead>
             <tr className="text-left text-slate-500">
               <th className="px-4 py-2 min-w-20 text-center">序号</th>
-              <th className="px-4 py-2">标题</th>
+              <th className="px-4 py-2 min-w-80">标题</th>
               {/* <th className="px-4 py-2 w-20">年份</th> */}
               <th className="px-4 py-2 w-40">作者</th>
               <th className="px-4 py-2 w-32">方向</th>
