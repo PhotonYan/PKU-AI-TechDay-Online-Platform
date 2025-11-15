@@ -14,6 +14,7 @@ import AdminExhibitPage from "./pages/AdminExhibitPage";
 import ReviewerRegisterPage from "./pages/ReviewerRegisterPage";
 import AwardsManagementPage from "./pages/AwardsManagementPage";
 import AdminDatabasePage from "./pages/AdminDatabasePage";
+import AboutPage from "./pages/AboutPage";
 import NewsListPage from "./pages/NewsListPage";
 import NewsDetailPage from "./pages/NewsDetailPage";
 import NewsManagementPage from "./pages/NewsManagementPage";
@@ -120,6 +121,7 @@ const App = () => {
           <Route path="/news/manage" element={<NewsManagementPage />} />
           <Route path="/news/editor/new" element={<NewsEditorPage />} />
           <Route path="/news/editor/:slug" element={<NewsEditorPage />} />
+          <Route path="/about" element={<AboutPage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/author/register" element={<AuthorRegisterPage />} />
           <Route path="/reviewer/register" element={<ReviewerRegisterPage />} />
