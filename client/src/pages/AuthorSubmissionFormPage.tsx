@@ -120,7 +120,10 @@ const AuthorSubmissionFormPage = () => {
   const downloadPoster = async () => {
     if (!token || !existingPoster) return;
     try {
-      const res = await fetch(resolveApiUrl(existingPoster), {
+      const posterUrl = existingPoster.includes("token=")
+        ? existingPoster
+        : `${existingPoster}${existingPoster.includes("?") ? "&" : "?"}token=${token}`;
+      const res = await fetch(resolveApiUrl(posterUrl), {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (!res.ok) {

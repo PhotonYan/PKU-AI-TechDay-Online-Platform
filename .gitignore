@@ -4,7 +4,11 @@ node_modules
 *.log
 __pycache__
 .DS_Store
-uploads
+data/uploads/posters
+data/uploads/reimbursements
+backend/uploads
 *.csv
 assets
 .env.docker
+.env
+*.md

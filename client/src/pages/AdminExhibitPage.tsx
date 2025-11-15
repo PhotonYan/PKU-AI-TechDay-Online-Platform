@@ -165,7 +165,7 @@ const AdminExhibitPage = () => {
                 </th>
               ))}
               <th className="px-4 py-2 whitespace-nowrap">接受会议/期刊</th>
-              <th className="px-4 py-2 whitespace-nowrap">状态</th>
+              <th className="px-4 py-2 min-w-[6rem]">状态</th>
               <th className="px-4 py-2 whitespace-nowrap">操作</th>
             </tr>
           </thead>

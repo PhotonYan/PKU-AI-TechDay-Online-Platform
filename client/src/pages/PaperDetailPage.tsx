@@ -132,8 +132,9 @@ const PaperDetailPage = () => {
   if (!paper) return null;
 
   const rawPosterSrc = paper.poster_path || null;
-  const posterSrc = rawPosterSrc
-    ? `${rawPosterSrc}${rawPosterSrc.includes("#") ? "&" : "#"}toolbar=0&navpanes=0&scrollbar=0&view=FitH&zoom=page-fit`
+  const withToken = rawPosterSrc && token ? `${rawPosterSrc}${rawPosterSrc.includes("?") ? "&" : "?"}token=${token}` : rawPosterSrc;
+  const posterSrc = withToken
+    ? `${withToken}${withToken.includes("#") ? "&" : "#"}toolbar=0&navpanes=0&scrollbar=0&view=FitH&zoom=page-fit`
     : null;
 
   return (

@@ -3,13 +3,14 @@ import io
 from pathlib import Path
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import Response, StreamingResponse
 from sqlalchemy.orm import Session, selectinload
 
 from .. import models, schemas
 from ..config import get_settings
 from ..dependencies import get_db, get_optional_user, require_admin, require_vote_editor
+from ..auth import decode_token
 from ..utils.awards import compute_award_badges, compute_award_tags
 
 router = APIRouter(prefix="/api/submissions", tags=["submissions"])
@@ -302,12 +303,22 @@ def download_submission_poster(
     submission_id: int,
     db: Session = Depends(get_db),
     current_user: Optional[models.User] = Depends(get_optional_user),
+    token: Optional[str] = Query(None),
 ):
     submission = db.query(models.Submission).filter(models.Submission.id == submission_id).first()
     if not submission or not submission.poster_path:
         raise HTTPException(status_code=404, detail="Poster not found")
-    allowed_public = submission.review_status == models.SubmissionReviewStatus.approved and submission.archive_consent
-    has_authenticated_access = bool(current_user) and _can_view_submission(submission, current_user)
+    resolved_user = current_user
+    if not resolved_user and token:
+        try:
+            payload = decode_token(token)
+            user_id = payload.get("sub")
+            if user_id is not None:
+                resolved_user = db.query(models.User).filter(models.User.id == int(user_id)).first()
+        except Exception:  # noqa: BLE001
+            resolved_user = None
+    allowed_public = submission.review_status == models.SubmissionReviewStatus.approved
+    has_authenticated_access = bool(resolved_user) and _can_view_submission(submission, resolved_user)
     if not allowed_public and not has_authenticated_access:
         raise HTTPException(status_code=403, detail="无权访问该 Poster")
     file_path = _resolve_poster_path(submission.poster_path)
@@ -322,7 +333,7 @@ def download_submission_poster(
                     break
                 yield chunk
 
-    disposition = "inline" if allowed_public else "attachment"
+    disposition = "inline" if allowed_public or has_authenticated_access else "attachment"
     return StreamingResponse(
         _iterator(),
         media_type="application/pdf",
