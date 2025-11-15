@@ -11,6 +11,6 @@ backend/uploads
 assets
 .env.docker
 .env
-*.md
+2025*
 sample-data
 TODO.md
