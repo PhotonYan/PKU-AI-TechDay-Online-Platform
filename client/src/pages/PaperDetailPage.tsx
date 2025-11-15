@@ -28,6 +28,8 @@ interface PaperDetail {
   paper_url?: string | null;
   poster_path?: string | null;
   award?: string | null;
+  award_tags?: string[];
+  award_badges?: { name: string; color?: string | null }[];
   showVotes: boolean;
   canViewLogs: boolean;
   vote_innovation?: number;
@@ -40,6 +42,46 @@ const fieldLabels: Record<string, string> = {
   vote_innovation: "最佳创意奖",
   vote_impact: "最受欢迎奖",
   vote_feasibility: "不明觉厉奖",
+};
+
+const DEFAULT_BADGE_COLOR = "#fbbf24";
+
+const hexToRgb = (hex: string) => {
+  const normalized = hex.replace("#", "");
+  if (![3, 6].includes(normalized.length)) return null;
+  const value = normalized.length === 3 ? normalized.split("").map((c) => c + c).join("") : normalized;
+  const num = Number.parseInt(value, 16);
+  const r = (num >> 16) & 255;
+  const g = (num >> 8) & 255;
+  const b = num & 255;
+  return { r, g, b };
+};
+
+const rgbToHex = (r: number, g: number, b: number) =>
+  `#${[r, g, b]
+    .map((val) => {
+      const clamped = Math.min(255, Math.max(0, val));
+      return clamped.toString(16).padStart(2, "0");
+    })
+    .join("")}`;
+
+const darkenHex = (hex: string, amount = 0.2) => {
+  const rgb = hexToRgb(hex);
+  if (!rgb) return DEFAULT_BADGE_COLOR;
+  const r = Math.floor(rgb.r * (1 - amount));
+  const g = Math.floor(rgb.g * (1 - amount));
+  const b = Math.floor(rgb.b * (1 - amount));
+  return rgbToHex(r, g, b);
+};
+
+const getBadgeTextColor = (hex?: string) => {
+  const rgb = hexToRgb(hex || DEFAULT_BADGE_COLOR);
+  if (!rgb) return "#ffffff";
+  const luminance = 0.299 * rgb.r + 0.587 * rgb.g + 0.114 * rgb.b;
+  if (luminance < 200) {
+    return "#ffffff";
+  }
+  return darkenHex(hex || DEFAULT_BADGE_COLOR, 0.4);
 };
 
 const PaperDetailPage = () => {
@@ -67,7 +109,24 @@ const PaperDetailPage = () => {
           <span>作者：{paper.author || "-"}</span>
           <span>方向：{paper.direction || "未分类"}</span>
           <span>Track：{paper.track === "poster" ? "Poster" : "Demo"}</span>
-          {paper.award && <span className="text-amber-600">获奖：{paper.award}</span>}
+          {paper.award_badges && paper.award_badges.length > 0 && (
+            <span className="flex flex-wrap gap-1 text-amber-600">
+              奖项：
+              {paper.award_badges.map((badge) => (
+                <span
+                  key={`${badge.name}-${badge.color || "default"}`}
+                  className="border rounded-full px-2 py-0.5 text-xs"
+                  style={{
+                    backgroundColor: badge.color || DEFAULT_BADGE_COLOR,
+                    borderColor: badge.color || DEFAULT_BADGE_COLOR,
+                    color: getBadgeTextColor(badge.color || DEFAULT_BADGE_COLOR),
+                  }}
+                >
+                  {badge.name}
+                </span>
+              ))}
+            </span>
+          )}
         </div>
         <div className="text-xs text-slate-500 mt-1 flex gap-3">
           <span>审核状态：{paper.status === "approved" ? "通过" : paper.status === "pending" ? "待审核" : "未通过"}</span>

@@ -4,21 +4,28 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import Response
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from .. import models, schemas
 from ..config import get_settings
 from ..dependencies import get_db, get_optional_user, require_admin, require_vote_editor
+from ..utils.awards import compute_award_badges, compute_award_tags
 
 router = APIRouter(prefix="/api/submissions", tags=["submissions"])
 settings = get_settings()
 
 
-def _site_settings(db: Session) -> tuple[bool, bool]:
+def _site_settings(db: Session) -> tuple[bool, bool, set[int] | None]:
     settings_row = db.query(models.SiteSettings).first()
     show_votes = settings_row.show_vote_data if settings_row else False
     can_sort = settings_row.vote_sort_enabled if settings_row else False
-    return show_votes, can_sort
+    visible_awards: set[int] | None = None
+    if settings_row and settings_row.visible_award_ids:
+        try:
+            visible_awards = {int(value) for value in settings_row.visible_award_ids.split(",") if value}
+        except ValueError:
+            visible_awards = None
+    return show_votes, can_sort, visible_awards
 
 
 @router.get("")
@@ -28,9 +35,15 @@ def list_submissions(
     sort: Optional[str] = None,
     db: Session = Depends(get_db),
 ):
-    show_votes, can_sort = _site_settings(db)
+    show_votes, can_sort, visible_awards = _site_settings(db)
     query = (
         db.query(models.Submission)
+        .options(
+            selectinload(models.Submission.direction),
+            selectinload(models.Submission.author),
+            selectinload(models.Submission.award_records).selectinload(models.SubmissionAward.award),
+            selectinload(models.Submission.recommendations),
+        )
         .filter(models.Submission.track == track)
         .filter(models.Submission.review_status == models.SubmissionReviewStatus.approved)
     )
@@ -58,6 +71,8 @@ def list_submissions(
             "paper_url": submission.paper_url,
             "poster_path": submission.poster_path,
             "award": submission.award,
+            "award_tags": compute_award_tags(submission, visible_awards),
+            "award_badges": compute_award_badges(submission, visible_awards),
             "publication_status": submission.publication_status.value,
         }
         if show_votes:
@@ -144,7 +159,7 @@ def get_submission(
     submission = db.query(models.Submission).filter(models.Submission.id == submission_id).first()
     if not submission:
         raise HTTPException(status_code=404, detail="Submission not found")
-    show_votes, _ = _site_settings(db)
+    show_votes, _, visible_awards = _site_settings(db)
     can_view_logs = False
     if current_user:
         if current_user.role == models.UserRole.admin:
@@ -189,6 +204,8 @@ def get_submission(
         "paper_url": submission.paper_url,
         "poster_path": submission.poster_path,
         "award": submission.award,
+        "award_tags": compute_award_tags(submission, visible_awards),
+        "award_badges": compute_award_badges(submission, visible_awards),
         "author": submission.author.name if submission.author else None,
         "showVotes": show_votes,
         "canViewLogs": can_view_logs,

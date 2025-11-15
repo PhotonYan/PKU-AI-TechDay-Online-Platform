@@ -6,10 +6,11 @@ const LoginPage = () => {
   const { login } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const [email, setEmail] = useState("admin@techday.local");
+  const [account, setAccount] = useState("admin@techday.local");
   const [password, setPassword] = useState("AdminPass123");
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
+  const [mode, setMode] = useState<"standard" | "reviewer">("standard");
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -22,7 +23,7 @@ const LoginPage = () => {
     e.preventDefault();
     setError(null);
     try {
-      await login(email, password);
+      await login(account, password);
       navigate("/");
     } catch (err) {
       setError((err as Error).message);
@@ -33,14 +34,30 @@ const LoginPage = () => {
     <div className="max-w-md mx-auto bg-white p-6 rounded-lg shadow space-y-4">
       <h1 className="text-xl font-semibold mb-4">登录</h1>
       {info && <div className="bg-emerald-50 text-emerald-700 px-3 py-2 rounded text-sm">{info}</div>}
+      <div className="flex gap-2 text-sm">
+        <button
+          type="button"
+          className={`px-3 py-1 border rounded ${mode === "standard" ? "bg-blue-600 text-white border-blue-600" : ""}`}
+          onClick={() => setMode("standard")}
+        >
+          普通用户
+        </button>
+        <button
+          type="button"
+          className={`px-3 py-1 border rounded ${mode === "reviewer" ? "bg-blue-600 text-white border-blue-600" : ""}`}
+          onClick={() => setMode("reviewer")}
+        >
+          审阅者
+        </button>
+      </div>
       <form className="space-y-4" onSubmit={handleSubmit}>
         <div>
-          <label className="block text-sm font-medium">邮箱</label>
+          <label className="block text-sm font-medium">{mode === "reviewer" ? "邀请码" : "邮箱"}</label>
           <input
             className="mt-1 w-full border rounded px-3 py-2"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            type="email"
+            value={account}
+            onChange={(e) => setAccount(e.target.value)}
+            type={mode === "reviewer" ? "text" : "email"}
             required
           />
         </div>
@@ -70,6 +87,12 @@ const LoginPage = () => {
           想投稿参展？
           <Link className="text-blue-600 ml-1" to="/author/register">
             作者注册
+          </Link>
+        </div>
+        <div>
+          受邀老师？
+          <Link className="text-blue-600 ml-1" to="/reviewer/register">
+            审阅者注册
           </Link>
         </div>
       </div>

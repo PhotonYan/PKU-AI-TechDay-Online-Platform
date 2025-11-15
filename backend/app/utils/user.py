@@ -23,6 +23,7 @@ def _resolve_orgs(db: Session, track_names: List[str]) -> List[models.Organizati
 
 
 def user_to_response(user: models.User, db: Session) -> schemas.UserResponse:
+    reviewer_direction_name: str | None = None
     if user.role == models.UserRole.author:
         preference_list: list[str] | None = None
         assigned_list: list[str] | None = None
@@ -30,6 +31,14 @@ def user_to_response(user: models.User, db: Session) -> schemas.UserResponse:
         organization_name: str | None = None
         responsibility_text: str | None = None
         organizations_payload: list[schemas.OrganizationResponse] | None = None
+    elif user.role == models.UserRole.reviewer:
+        preference_list = None
+        assigned_list = None
+        org_details = []
+        reviewer_direction_name = user.reviewer_direction.name if user.reviewer_direction else None
+        organization_name = reviewer_direction_name
+        responsibility_text = f"审阅方向：{reviewer_direction_name}" if reviewer_direction_name else "未设置审阅方向"
+        organizations_payload = None
     else:
         preference_list = _split_tracks(user.volunteer_tracks)
         assigned_list = _split_tracks(user.assigned_tracks)
@@ -55,7 +64,7 @@ def user_to_response(user: models.User, db: Session) -> schemas.UserResponse:
         volunteer_tracks=preference_list or None,
         assigned_tracks=assigned_list or None,
         availability_slots=(user.availability_slots.split(",") if user.availability_slots else None)
-        if user.role != models.UserRole.author
+        if user.role not in {models.UserRole.author, models.UserRole.reviewer}
         else None,
         role=user.role,
         organization=organization_name,
@@ -64,4 +73,6 @@ def user_to_response(user: models.User, db: Session) -> schemas.UserResponse:
         vote_counter_opt_in=user.vote_counter_opt_in,
         role_template_can_edit_vote=user.role_template.can_edit_vote_data if user.role_template else False,
         organizations_detail=organizations_payload,
+        reviewer_direction_id=user.reviewer_direction_id,
+        reviewer_direction_name=reviewer_direction_name,
     )

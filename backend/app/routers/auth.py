@@ -45,7 +45,17 @@ def login_for_access_token(
     form_data: OAuth2PasswordRequestForm = Depends(),
     db: Session = Depends(get_db),
 ):
-    user = db.query(models.User).filter(models.User.email == form_data.username).first()
+    identifier = form_data.username.strip()
+    user = db.query(models.User).filter(models.User.email == identifier).first()
+    if not user:
+        reviewer_code = identifier.upper()
+        invite = (
+            db.query(models.ReviewerInvite)
+            .filter(models.ReviewerInvite.code == reviewer_code, models.ReviewerInvite.is_used.is_(True))
+            .first()
+        )
+        if invite:
+            user = db.query(models.User).filter(models.User.reviewer_invite_id == invite.id).first()
     if not user or not verify_password(form_data.password, user.password_hash):
         logger.warning("Login failed for email=%s", form_data.username)
         raise HTTPException(status_code=400, detail="Incorrect email or password")

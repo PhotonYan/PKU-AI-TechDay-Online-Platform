@@ -95,3 +95,19 @@ def require_vote_editor(
     if allowed_template_id and user.role_template_id != allowed_template_id:
         raise HTTPException(status_code=403, detail="Template not allowed to edit votes")
     return user
+
+
+def require_reviewer(user: models.User = Depends(get_current_user)) -> models.User:
+    if user.role != models.UserRole.reviewer:
+        raise HTTPException(status_code=403, detail="Reviewer privileges required")
+    if not user.reviewer_direction_id:
+        raise HTTPException(status_code=400, detail="未设置审阅方向")
+    return user
+
+
+def require_admin_or_reviewer(user: models.User = Depends(get_current_user)) -> models.User:
+    if user.role not in {models.UserRole.admin, models.UserRole.reviewer}:
+        raise HTTPException(status_code=403, detail="需要管理员或审阅者权限")
+    if user.role == models.UserRole.reviewer and not user.reviewer_direction_id:
+        raise HTTPException(status_code=400, detail="未设置审阅方向")
+    return user

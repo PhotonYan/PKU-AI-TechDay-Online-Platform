@@ -9,7 +9,17 @@ from .config import get_settings
 from .database import Base, engine, SessionLocal
 from .auth import get_password_hash
 from . import models
-from .routers import auth, reimbursements, volunteers, admin, authors, submissions, directions
+from .routers import (
+    auth,
+    reimbursements,
+    volunteers,
+    admin,
+    authors,
+    submissions,
+    directions,
+    reviewers,
+    awards,
+)
 
 settings = get_settings()
 Path(settings.upload_dir).mkdir(parents=True, exist_ok=True)
@@ -31,6 +41,8 @@ app.include_router(reimbursements.router)
 app.include_router(submissions.router)
 app.include_router(directions.router)
 app.include_router(admin.router)
+app.include_router(reviewers.router)
+app.include_router(awards.router)
 
 app.mount("/uploads", StaticFiles(directory=settings.upload_dir), name="uploads")
 
@@ -41,6 +53,16 @@ def ensure_column(db, table: str, column: str, column_def: str):
     if column in columns:
         return
     db.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {column_def}"))
+    db.commit()
+
+
+def ensure_index(db, table: str, index_name: str, column: str, unique: bool = False):
+    inspector = inspect(engine)
+    indexes = {idx["name"] for idx in inspector.get_indexes(table)}
+    if index_name in indexes:
+        return
+    unique_sql = "UNIQUE " if unique else ""
+    db.execute(text(f"CREATE {unique_sql}INDEX {index_name} ON {table} ({column})"))
     db.commit()
 
 
@@ -55,6 +77,11 @@ def startup_event():
         ensure_column(db, "users", "student_id", "VARCHAR")
         ensure_column(db, "users", "assigned_tracks", "VARCHAR")
         ensure_column(db, "users", "school", "VARCHAR")
+        ensure_column(db, "users", "reviewer_direction_id", "INTEGER")
+        ensure_column(db, "users", "reviewer_invite_id", "INTEGER")
+        ensure_index(db, "users", "ix_users_reviewer_invite_id", "reviewer_invite_id", unique=True)
+        ensure_column(db, "awards", "color", "VARCHAR")
+        ensure_column(db, "site_settings", "visible_award_ids", "VARCHAR")
         ensure_column(db, "submissions", "sequence_no", "INTEGER")
         admin_user = db.query(models.User).filter(models.User.email == settings.admin_email).first()
         if not admin_user:

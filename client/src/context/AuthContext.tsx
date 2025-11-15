@@ -1,7 +1,7 @@
 import { ReactNode, createContext, useContext, useEffect, useState } from "react";
 import { apiClient } from "../api/client";
 
-type Role = "volunteer" | "admin" | "author";
+type Role = "volunteer" | "admin" | "author" | "reviewer";
 
 export interface AuthUser {
   id: number;
@@ -18,6 +18,8 @@ export interface AuthUser {
   volunteer_tracks?: string[] | null;
   assigned_tracks?: string[] | null;
   organizations_detail?: { id: number; name: string; responsibility: string }[] | null;
+  reviewer_direction_id?: number | null;
+  reviewer_direction_name?: string | null;
 }
 
 interface AuthContextShape {

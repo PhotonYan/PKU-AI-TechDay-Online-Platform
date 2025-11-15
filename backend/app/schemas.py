@@ -72,6 +72,8 @@ class AuthorRegister(BaseModel):
 
 class UserResponse(UserBase):
     id: int
+    reviewer_direction_id: Optional[int] = None
+    reviewer_direction_name: Optional[str] = None
 
     class Config:
         orm_mode = True
@@ -210,6 +212,7 @@ class VoteSettings(BaseModel):
     show_vote_data: bool
     vote_sort_enabled: bool
     vote_edit_role_template_id: Optional[int]
+    visible_award_ids: Optional[List[int]] = None
 
 
 class RoleTemplateCreate(BaseModel):
@@ -240,3 +243,85 @@ class UserUpdate(BaseModel):
     role_template_id: Optional[int] = None
     role: Optional[UserRole] = None
     vote_counter_opt_in: Optional[bool] = None
+
+
+class ReviewerInviteCreate(BaseModel):
+    code: Optional[str] = None
+    preset_direction_id: Optional[int] = None
+
+
+class ReviewerInviteResponse(BaseModel):
+    id: int
+    code: str
+    preset_direction_id: Optional[int]
+    preset_direction_name: Optional[str]
+    reviewer_name: Optional[str]
+    reviewer_direction_id: Optional[int]
+    reviewer_direction_name: Optional[str]
+    is_used: bool
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        orm_mode = True
+
+
+class ReviewerRegisterRequest(BaseModel):
+    invite_code: str
+    name: str
+    password: str
+    direction_id: Optional[int] = None
+
+
+class AwardCreate(BaseModel):
+    name: str
+    description: Optional[str] = None
+    color: Optional[str] = None
+
+
+class AwardUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    color: Optional[str] = None
+
+
+class AwardResponse(AwardCreate):
+    id: int
+
+    class Config:
+        orm_mode = True
+
+
+class ReviewRecommendationPayload(BaseModel):
+    reason: str
+    confidence: Optional[float] = None
+
+
+class ReviewRecommendationResponse(BaseModel):
+    reviewer_id: int
+    reviewer_name: str
+    reason: str
+    confidence: Optional[float] = None
+    updated_at: datetime
+
+
+class AwardAssignmentRequest(BaseModel):
+    award_ids: List[int]
+
+
+class SubmissionAwardTag(BaseModel):
+    name: str
+    color: Optional[str] = None
+
+
+class AwardedSubmissionResponse(BaseModel):
+    id: int
+    sequence_no: Optional[int]
+    title: str
+    direction: Optional[str]
+    direction_id: Optional[int]
+    author: Optional[str]
+    award_tags: List[str]
+    award_badges: List[SubmissionAwardTag]
+    reviewer_tags: List[ReviewRecommendationResponse]
+    my_recommendation: Optional[ReviewRecommendationResponse] = None

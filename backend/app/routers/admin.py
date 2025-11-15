@@ -1,3 +1,5 @@
+import secrets
+import string
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Response
@@ -14,6 +16,8 @@ def list_users(db: Session = Depends(get_db), admin: models.User = Depends(requi
     users = db.query(models.User).all()
     result = []
     for user in users:
+        if user.role == models.UserRole.reviewer:
+            continue
         tracks = user.volunteer_tracks.split(",") if user.volunteer_tracks else []
         assigned_tracks = user.assigned_tracks.split(",") if user.assigned_tracks else []
         result.append(
@@ -249,10 +253,16 @@ def get_vote_settings(db: Session = Depends(get_db), admin: models.User = Depend
         db.add(settings)
         db.commit()
         db.refresh(settings)
+    visible_ids = (
+        [int(value) for value in settings.visible_award_ids.split(",") if value]
+        if settings.visible_award_ids
+        else None
+    )
     return schemas.VoteSettings(
         show_vote_data=settings.show_vote_data,
         vote_sort_enabled=settings.vote_sort_enabled,
         vote_edit_role_template_id=settings.vote_edit_role_template_id,
+        visible_award_ids=visible_ids,
     )
 
 
@@ -268,6 +278,10 @@ def update_vote_settings(
     settings_row.show_vote_data = payload.show_vote_data
     settings_row.vote_sort_enabled = payload.vote_sort_enabled
     settings_row.vote_edit_role_template_id = payload.vote_edit_role_template_id
+    if payload.visible_award_ids:
+        settings_row.visible_award_ids = ",".join(str(item) for item in payload.visible_award_ids)
+    else:
+        settings_row.visible_award_ids = None
     db.add(settings_row)
     db.commit()
     db.refresh(settings_row)
@@ -379,3 +393,71 @@ def admin_renumber_submissions(
         db.add(submission)
     db.commit()
     return {"status": "ok", "renumbered": len(approved)}
+
+
+def _normalize_code(code: str) -> str:
+    return code.strip().upper()
+
+
+def _invite_to_response(invite: models.ReviewerInvite) -> schemas.ReviewerInviteResponse:
+    return schemas.ReviewerInviteResponse(
+        id=invite.id,
+        code=invite.code,
+        preset_direction_id=invite.preset_direction_id,
+        preset_direction_name=invite.preset_direction.name if invite.preset_direction else None,
+        reviewer_name=invite.reviewer_name,
+        reviewer_direction_id=invite.reviewer_direction_id,
+        reviewer_direction_name=invite.reviewer_direction.name if invite.reviewer_direction else None,
+        is_used=invite.is_used,
+        created_at=invite.created_at,
+        updated_at=invite.updated_at,
+    )
+
+
+@router.get("/reviewer-invites", response_model=List[schemas.ReviewerInviteResponse])
+def list_reviewer_invites(db: Session = Depends(get_db), admin: models.User = Depends(require_admin)):
+    invites = db.query(models.ReviewerInvite).order_by(models.ReviewerInvite.created_at.desc()).all()
+    return [_invite_to_response(invite) for invite in invites]
+
+
+@router.post("/reviewer-invites", response_model=schemas.ReviewerInviteResponse)
+def create_reviewer_invite(
+    payload: schemas.ReviewerInviteCreate,
+    db: Session = Depends(get_db),
+    admin: models.User = Depends(require_admin),
+):
+    raw_code = payload.code.strip() if payload.code else "".join(
+        secrets.choice(string.ascii_uppercase + string.digits) for _ in range(8)
+    )
+    norm = _normalize_code(raw_code)
+    existing = db.query(models.ReviewerInvite).filter(models.ReviewerInvite.code == norm).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="邀请码已存在")
+    preset_direction = None
+    if payload.preset_direction_id:
+        preset_direction = (
+            db.query(models.Direction).filter(models.Direction.id == payload.preset_direction_id).first()
+        )
+        if not preset_direction:
+            raise HTTPException(status_code=404, detail="方向不存在")
+    invite = models.ReviewerInvite(code=norm, preset_direction_id=preset_direction.id if preset_direction else None)
+    db.add(invite)
+    db.commit()
+    db.refresh(invite)
+    return _invite_to_response(invite)
+
+
+@router.delete("/reviewer-invites/{invite_id}")
+def delete_reviewer_invite(
+    invite_id: int,
+    db: Session = Depends(get_db),
+    admin: models.User = Depends(require_admin),
+):
+    invite = db.query(models.ReviewerInvite).filter(models.ReviewerInvite.id == invite_id).first()
+    if not invite:
+        raise HTTPException(status_code=404, detail="邀请码不存在")
+    if invite.is_used:
+        raise HTTPException(status_code=400, detail="邀请码已被使用，无法删除")
+    db.delete(invite)
+    db.commit()
+    return {"status": "deleted"}

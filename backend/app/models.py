@@ -11,6 +11,7 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    UniqueConstraint,
 )
 from sqlalchemy.orm import relationship
 
@@ -21,6 +22,7 @@ class UserRole(str, enum.Enum):
     volunteer = "volunteer"
     admin = "admin"
     author = "author"
+    reviewer = "reviewer"
 
 
 class SubmissionTrack(str, enum.Enum):
@@ -85,11 +87,16 @@ class User(Base):
     organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=True)
     role_template_id = Column(Integer, ForeignKey("role_templates.id"), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
+    reviewer_direction_id = Column(Integer, ForeignKey("directions.id"), nullable=True)
+    reviewer_invite_id = Column(Integer, ForeignKey("reviewer_invites.id"), nullable=True, unique=True)
 
     organization = relationship("Organization", back_populates="users")
     role_template = relationship("RoleTemplate", back_populates="users")
     reimbursements = relationship("Reimbursement", back_populates="applicant")
     submissions = relationship("Submission", back_populates="author", cascade="all, delete-orphan")
+    reviewer_direction = relationship("Direction", foreign_keys=[reviewer_direction_id])
+    reviewer_invite = relationship("ReviewerInvite", back_populates="reviewer", uselist=False)
+    recommendations = relationship("ReviewRecommendation", back_populates="reviewer", cascade="all, delete-orphan")
 
 
 class Reimbursement(Base):
@@ -149,6 +156,8 @@ class Submission(Base):
     direction = relationship("Direction", back_populates="submissions")
     author = relationship("User", back_populates="submissions")
     logs = relationship("SubmissionVoteLog", back_populates="submission", cascade="all, delete-orphan")
+    award_records = relationship("SubmissionAward", back_populates="submission", cascade="all, delete-orphan")
+    recommendations = relationship("ReviewRecommendation", back_populates="submission", cascade="all, delete-orphan")
 
 
 class SubmissionVoteLog(Base):
@@ -166,6 +175,72 @@ class SubmissionVoteLog(Base):
     user = relationship("User")
 
 
+class ReviewerInvite(Base):
+    __tablename__ = "reviewer_invites"
+
+    id = Column(Integer, primary_key=True, index=True)
+    code = Column(String, unique=True, nullable=False, index=True)
+    preset_direction_id = Column(Integer, ForeignKey("directions.id"), nullable=True)
+    reviewer_name = Column(String, nullable=True)
+    reviewer_direction_id = Column(Integer, ForeignKey("directions.id"), nullable=True)
+    is_used = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    preset_direction = relationship("Direction", foreign_keys=[preset_direction_id])
+    reviewer_direction = relationship("Direction", foreign_keys=[reviewer_direction_id])
+    reviewer = relationship(
+        "User",
+        back_populates="reviewer_invite",
+        uselist=False,
+        primaryjoin="ReviewerInvite.id==User.reviewer_invite_id",
+    )
+
+
+class Award(Base):
+    __tablename__ = "awards"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, unique=True, nullable=False)
+    description = Column(Text, nullable=True)
+    color = Column(String, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    submissions = relationship("SubmissionAward", back_populates="award")
+
+
+class SubmissionAward(Base):
+    __tablename__ = "submission_awards"
+    __table_args__ = (UniqueConstraint("submission_id", "award_id", name="uq_submission_award"),)
+
+    id = Column(Integer, primary_key=True, index=True)
+    submission_id = Column(Integer, ForeignKey("submissions.id"), nullable=False)
+    award_id = Column(Integer, ForeignKey("awards.id"), nullable=False)
+    assigned_by_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    submission = relationship("Submission", back_populates="award_records")
+    award = relationship("Award", back_populates="submissions")
+    assigned_by = relationship("User")
+
+
+class ReviewRecommendation(Base):
+    __tablename__ = "review_recommendations"
+    __table_args__ = (UniqueConstraint("submission_id", "reviewer_id", name="uq_submission_reviewer"),)
+
+    id = Column(Integer, primary_key=True, index=True)
+    submission_id = Column(Integer, ForeignKey("submissions.id"), nullable=False)
+    reviewer_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    reason = Column(Text, nullable=False)
+    confidence = Column(Float, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    submission = relationship("Submission", back_populates="recommendations")
+    reviewer = relationship("User", back_populates="recommendations")
+
+
+
 class SiteSettings(Base):
     __tablename__ = "site_settings"
 
@@ -173,3 +248,4 @@ class SiteSettings(Base):
     show_vote_data = Column(Boolean, default=False)
     vote_sort_enabled = Column(Boolean, default=False)
     vote_edit_role_template_id = Column(Integer, ForeignKey("role_templates.id"), nullable=True)
+    visible_award_ids = Column(String, nullable=True)

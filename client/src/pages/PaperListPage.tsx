@@ -14,6 +14,8 @@ interface SubmissionListItem {
   status: string;
   track: string;
   award?: string | null;
+  award_tags?: string[];
+  award_badges?: { name: string; color?: string | null }[];
   paper_url?: string | null;
   poster_path?: string | null;
   archive_consent: boolean;
@@ -32,6 +34,46 @@ const voteFields = [
   { key: "vote_impact", label: "最受欢迎" },
   { key: "vote_feasibility", label: "不明觉厉" },
 ] as const;
+
+const DEFAULT_BADGE_COLOR = "#fbbf24";
+
+const hexToRgb = (hex: string) => {
+  const normalized = hex.replace("#", "");
+  if (![3, 6].includes(normalized.length)) return null;
+  const value = normalized.length === 3 ? normalized.split("").map((c) => c + c).join("") : normalized;
+  const num = Number.parseInt(value, 16);
+  const r = (num >> 16) & 255;
+  const g = (num >> 8) & 255;
+  const b = num & 255;
+  return { r, g, b };
+};
+
+const rgbToHex = (r: number, g: number, b: number) =>
+  `#${[r, g, b]
+    .map((val) => {
+      const clamped = Math.min(255, Math.max(0, val));
+      return clamped.toString(16).padStart(2, "0");
+    })
+    .join("")}`;
+
+const darkenHex = (hex: string, amount = 0.2) => {
+  const rgb = hexToRgb(hex);
+  if (!rgb) return DEFAULT_BADGE_COLOR;
+  const r = Math.floor(rgb.r * (1 - amount));
+  const g = Math.floor(rgb.g * (1 - amount));
+  const b = Math.floor(rgb.b * (1 - amount));
+  return rgbToHex(r, g, b);
+};
+
+const getBadgeTextColor = (hex?: string) => {
+  const rgb = hexToRgb(hex || DEFAULT_BADGE_COLOR);
+  if (!rgb) return "#ffffff";
+  const luminance = 0.299 * rgb.r + 0.587 * rgb.g + 0.114 * rgb.b;
+  if (luminance < 200) {
+    return "#ffffff";
+  }
+  return darkenHex(hex || DEFAULT_BADGE_COLOR, 0.4);
+};
 
 const PaperListPage = () => {
   const { token, user } = useAuth();
@@ -213,9 +255,22 @@ const PaperListPage = () => {
                   <Link to={`/papers/${submission.id}`} className="font-semibold text-blue-700 hover:underline">
                     {submission.title}
                   </Link>
-                  {submission.award && (
-                    <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">{submission.award}</span>
-                  )}
+                  {(submission.award_badges || []).map((badge) => {
+                    const badgeColor = badge.color || DEFAULT_BADGE_COLOR;
+                    return (
+                      <span
+                        key={`${badge.name}-${badge.color || "default"}`}
+                        className="text-xs border rounded-full px-2 py-0.5"
+                        style={{
+                          backgroundColor: badgeColor,
+                          borderColor: badgeColor,
+                          color: getBadgeTextColor(badgeColor),
+                        }}
+                      >
+                        {badge.name}
+                      </span>
+                    );
+                  })}
                 </div>
                 <div className="text-sm text-slate-600">
                   作者：{submission.author} · 方向：{submission.direction || "未分类"}
