@@ -19,6 +19,7 @@ const ReviewerRegisterPage = () => {
   const [directions, setDirections] = useState<Direction[]>([]);
   const [form, setForm] = useState({
     name: "",
+    email: "",
     password: "",
     invite_code: "",
     direction_id: "",
@@ -68,6 +69,7 @@ const ReviewerRegisterPage = () => {
         method: "POST",
         body: JSON.stringify({
           name: form.name,
+          email: form.email,
           password: form.password,
           invite_code: form.invite_code.trim(),
           direction_id: inviteInfo?.preset_direction_id
@@ -106,6 +108,17 @@ const ReviewerRegisterPage = () => {
             className="mt-1 w-full border rounded px-3 py-2"
             value={form.name}
             onChange={(e) => setForm({ ...form, name: e.target.value })}
+            required
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium">邮箱</label>
+          <input
+            type="email"
+            className="mt-1 w-full border rounded px-3 py-2"
+            value={form.email}
+            onChange={(e) => setForm({ ...form, email: e.target.value })}
+            placeholder="name@example.com"
             required
           />
         </div>

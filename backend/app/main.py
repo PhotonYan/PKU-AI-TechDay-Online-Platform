@@ -89,6 +89,7 @@ def startup_event():
         ensure_column(db, "submissions", "sequence_no", "INTEGER")
         ensure_column(db, "submissions", "authors", "TEXT")
         ensure_column(db, "submissions", "year", "INTEGER")
+        ensure_column(db, "reviewer_invites", "reviewer_email", "VARCHAR")
         admin_user = db.query(models.User).filter(models.User.email == settings.admin_email).first()
         if not admin_user:
             admin_user = models.User(

@@ -34,7 +34,7 @@ const LoginPage = () => {
     <div className="max-w-md mx-auto bg-white p-6 rounded-lg shadow space-y-4">
       <h1 className="text-xl font-semibold mb-4">登录</h1>
       {info && <div className="bg-emerald-50 text-emerald-700 px-3 py-2 rounded text-sm">{info}</div>}
-      <div className="flex gap-2 text-sm">
+      {/* <div className="flex gap-2 text-sm">
         <button
           type="button"
           className={`px-3 py-1 border rounded ${mode === "standard" ? "bg-blue-600 text-white border-blue-600" : ""}`}
@@ -49,7 +49,7 @@ const LoginPage = () => {
         >
           审阅者
         </button>
-      </div>
+      </div> */}
       <form className="space-y-4" onSubmit={handleSubmit}>
         <div>
           <label className="block text-sm font-medium">{mode === "reviewer" ? "邀请码" : "邮箱"}</label>

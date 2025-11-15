@@ -659,6 +659,7 @@ def _invite_to_response(invite: models.ReviewerInvite) -> schemas.ReviewerInvite
         preset_direction_id=invite.preset_direction_id,
         preset_direction_name=invite.preset_direction.name if invite.preset_direction else None,
         reviewer_name=invite.reviewer_name,
+        reviewer_email=invite.reviewer_email,
         reviewer_direction_id=invite.reviewer_direction_id,
         reviewer_direction_name=invite.reviewer_direction.name if invite.reviewer_direction else None,
         is_used=invite.is_used,

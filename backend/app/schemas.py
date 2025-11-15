@@ -262,6 +262,7 @@ class ReviewerInviteResponse(BaseModel):
     preset_direction_id: Optional[int]
     preset_direction_name: Optional[str]
     reviewer_name: Optional[str]
+    reviewer_email: Optional[str]
     reviewer_direction_id: Optional[int]
     reviewer_direction_name: Optional[str]
     is_used: bool
@@ -275,6 +276,7 @@ class ReviewerInviteResponse(BaseModel):
 class ReviewerRegisterRequest(BaseModel):
     invite_code: str
     name: str
+    email: EmailStr
     password: str
     direction_id: Optional[int] = None
 

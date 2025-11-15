@@ -97,7 +97,14 @@ const PaperDetailPage = () => {
 
   if (!paper) return <div>加载中...</div>;
 
-  const posterSrc = paper.poster_path ? (paper.poster_path.startsWith("http") ? paper.poster_path : `/${paper.poster_path}`) : null;
+  const rawPosterSrc = paper.poster_path
+    ? paper.poster_path.startsWith("http")
+      ? paper.poster_path
+      : `/${paper.poster_path}`
+    : null;
+  const posterSrc = rawPosterSrc
+    ? `${rawPosterSrc}${rawPosterSrc.includes("#") ? "&" : "#"}toolbar=0&navpanes=0&scrollbar=0&view=FitH&zoom=page-fit`
+    : null;
 
   return (
     <div className="bg-white p-6 rounded shadow space-y-4">
@@ -165,7 +172,7 @@ const PaperDetailPage = () => {
         <div className="space-y-2">
           <div className="text-sm font-semibold text-slate-600">Poster 预览</div>
           <div className="border rounded overflow-hidden bg-slate-50">
-            <iframe title="poster" src={posterSrc} className="w-full h-[480px]" />
+            <iframe title="poster" src={posterSrc} className="w-full h-[600px]" />
           </div>
         </div>
       )}

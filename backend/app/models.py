@@ -185,6 +185,7 @@ class ReviewerInvite(Base):
     code = Column(String, unique=True, nullable=False, index=True)
     preset_direction_id = Column(Integer, ForeignKey("directions.id"), nullable=True)
     reviewer_name = Column(String, nullable=True)
+    reviewer_email = Column(String, nullable=True)
     reviewer_direction_id = Column(Integer, ForeignKey("directions.id"), nullable=True)
     is_used = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)

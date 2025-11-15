@@ -41,12 +41,14 @@ def register_reviewer(payload: schemas.ReviewerRegisterRequest, db: Session = De
     direction = db.query(models.Direction).filter(models.Direction.id == direction_id).first()
     if not direction:
         raise HTTPException(status_code=404, detail="方向不存在")
-    pseudo_email = f"{normalized}@reviewer.local"
-    existing_user = db.query(models.User).filter(models.User.email == pseudo_email).first()
+    normalized_email = payload.email.strip().lower()
+    if not normalized_email:
+        raise HTTPException(status_code=400, detail="邮箱不能为空")
+    existing_user = db.query(models.User).filter(models.User.email == normalized_email).first()
     if existing_user:
-        raise HTTPException(status_code=400, detail="该邀请码已绑定账号")
+        raise HTTPException(status_code=400, detail="邮箱已被占用")
     user = models.User(
-        email=pseudo_email,
+        email=normalized_email,
         name=payload.name,
         password_hash=get_password_hash(payload.password),
         role=models.UserRole.reviewer,
@@ -57,6 +59,7 @@ def register_reviewer(payload: schemas.ReviewerRegisterRequest, db: Session = De
     db.flush()
     invite.reviewer_name = payload.name
     invite.reviewer_direction_id = direction.id
+    invite.reviewer_email = normalized_email
     invite.is_used = True
     db.add(invite)
     db.commit()

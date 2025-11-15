@@ -14,6 +14,7 @@
 - **Reimbursements**：志愿者仅能创建/编辑自己且组织从所属工作组下拉选择；管理员可审核、导出 CSV、强制删除任意记录。上传附件存磁盘。
 - **Papers Table**：无需登录即可浏览。若管理员开启“展示投票”，则列表与详情显示三项投票数据；拥有投票权限者可在列表直接用 `创/欢/不` 输入，同时后端写 `paper_vote_logs`。
 - **Admin Settings**：管理组织、角色模板、投票展示开关、用户多组织分配、导出人员 CSV。
+- **News / Posts**：`client/src/assets/posts/*.md` 中的 Markdown 由 Vite 构建期读取，frontmatter 控制标题、摘要、可见范围；后端 `/api/posts` 系列接口负责 Markdown CRUD、权限、草稿发布，前端 `/news` 提供列表、详情、编辑与管理界面。
 
 ## 3. 数据库 Schema（关键字段）
 ```text
@@ -33,9 +34,15 @@ papers (
   id, sequence_no, title, author, abstract, direction, contact,
   venue, vote_innovation, vote_impact, vote_feasibility, created_by
 )
-paper_vote_logs (
-  id, paper_id, user_id, field_name, old_value, new_value, created_at
+submissions (
+  id, sequence_no, title, authors, contact, venue, track,
+  direction_id, abstract, author_id, year,
+  vote_innovation, vote_impact, vote_feasibility,
+  archive_consent, publication_status, paper_url, poster_path,
+  review_status, created_at, updated_at
 )
+paper_vote_logs (id, paper_id, user_id, field_name, old_value, new_value, created_at)
+news posts (存放于 client/src/assets/posts，frontmatter: title/date/category/tags/summary/visibility/author/published/content)
 site_settings (id, show_vote_data, vote_sort_enabled, vote_edit_role_template_id)
 ```
 
@@ -73,11 +80,17 @@ site_settings (id, show_vote_data, vote_sort_enabled, vote_edit_role_template_id
 | --- | --- |
 | `/` | 成果展示（公开，权限用户可就地改票） |
 | `/papers/:id` | 论文详情 + 修改历史 |
+| `/news` / `/news/:slug` | 新闻公告列表与 Markdown 详情（根据 frontmatter 权限过滤） |
+| `/news/manage` | 管理员或具发布权限的用户可在此查看草稿、发布/删除 |
+| `/news/editor/new` / `/news/editor/:slug` | 在线 Markdown 编辑（左编右看），填写 frontmatter 元数据 |
 | `/login` | 登录入口，同时承载“注册为志愿者”按钮 |
 | `/volunteer/register` | 志愿者报名表 |
 | `/volunteer/profile` | 个人资料与组织职责 |
 | `/reimbursements` | 报销列表 & 表单；管理员有审核/导出工具 |
 | `/admin/settings` | 组织/模板/投票设置/人员管理/CSV 工具 |
+| `/admin/exhibits` | 参展管理（按年份/Track 过滤、审核、重新编号） |
+| `/awards` | 奖项管理（管理员和审阅者视图） |
+| `/about` | 预留的 About 页面占位，可扩展菜单/说明 |
 
 ## 7. 日志与审计
 - `paper_vote_logs`：记录字段名、旧值、新值、操作者、时间戳；详情页按倒序展示。

@@ -40,6 +40,7 @@ interface ReviewerInvite {
   preset_direction_id?: number | null;
   preset_direction_name?: string | null;
   reviewer_name?: string | null;
+  reviewer_email?: string | null;
   reviewer_direction_name?: string | null;
   is_used: boolean;
   created_at: string;
@@ -561,7 +562,7 @@ const AdminSettingsPage = () => {
 
       <section className="bg-white p-6 rounded shadow">
         <h2 className="text-lg font-semibold mb-3">审阅者邀请码管理</h2>
-        <p className="text-sm text-slate-500 mb-4">邀请码创建后发给老师，注册成功后列表会显示其姓名与方向。</p>
+        <p className="text-sm text-slate-500 mb-4">邀请码创建后发给老师，注册成功后列表会显示其姓名、邮箱与方向。</p>
         <form className="grid gap-3 md:grid-cols-[1fr,1fr,120px]" onSubmit={submitInvite}>
           <input
             className="border rounded px-3 py-2"
@@ -591,6 +592,7 @@ const AdminSettingsPage = () => {
               <tr className="text-left text-slate-500">
                 <th className="px-2 py-2">邀请码</th>
                 <th className="px-2 py-2">状态</th>
+                <th className="px-2 py-2">邮箱</th>
                 <th className="px-2 py-2">审阅方向</th>
                 <th className="px-2 py-2">操作</th>
               </tr>
@@ -607,6 +609,15 @@ const AdminSettingsPage = () => {
                       </div>
                     ) : (
                       <span className="text-xs text-slate-500">未使用</span>
+                    )}
+                  </td>
+                  <td className="px-2 py-2">
+                    {invite.is_used ? (
+                      <a className="text-blue-600 text-xs break-all" href={`mailto:${invite.reviewer_email || ""}`}>
+                        {invite.reviewer_email || "-"}
+                      </a>
+                    ) : (
+                      <span className="text-xs text-slate-400">—</span>
                     )}
                   </td>
                   <td className="px-2 py-2">

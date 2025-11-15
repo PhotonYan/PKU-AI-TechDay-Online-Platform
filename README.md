@@ -41,6 +41,7 @@ Compose 方案包含 `backend` + `frontend`(nginx) + `postgres`。访问 `http:/
 | **成果展示 Table** | 公开浏览；管理员/具模板权限者可在列表直接编辑“创/欢/不”三项投票，后端记录修改日志，详情页展示最近 50 条历史。 |
 | **后台管理** | 管理组织、角色模板、投票展示开关、人员多组织分配、计票权限；一键导出当前人员配置 CSV。 |
 | **奖项管理 / 审阅者** | 新增“审阅者”角色与邀请码注册机制，管理员维护邀请码及奖项列表；审阅者在“奖项管理”页仅能查看自身方向、为通过论文填写推荐/信心度；管理员可查看全部方向、基于推荐记录为作品配置多个奖项标签并筛选。 |
+| **新闻公告系统** | `/news` 页加载 `client/src/assets/posts/*.md` 中的 Markdown，支持 YAML frontmatter（title/date/category/tags/summary/visibility/authors/published）、GFM、数学公式、角色可见范围；具发布权限的用户在 `/news/manage` / `/news/editor/:slug` 在线编辑/预览。 |
 | **数据库管理** | `/admin/database` 受二次密码保护（默认 `admindatabase`），列出 SQLite 表、查看/编辑/删除/新增行，支持整表删除以及 CSV 覆盖/追加导入。 |
 
 更多架构细节见 `docs/ARCHITECTURE.md`。
@@ -88,6 +89,32 @@ Compose 方案包含 `backend` + `frontend`(nginx) + `postgres`。访问 `http:/
 - 前端登录状态存于 `localStorage.token`，调试时可清空；登录后点击导航栏用户名即可进入“个人信息”。
 - 上传文件由 FastAPI 静态路由 `/uploads/*` 提供；Vite dev server 也代理 `/uploads`，因此开发模式下访问链接不会 404。
 - 若需要更多 CSV 字段或权限调整，可按 `backend/app/routers/*.py` 中现有模式扩展。
+
+## 7. 新闻公告 / Markdown 说明
+
+- Markdown 文件放在 `client/src/assets/posts/`，命名建议 `YYYY-MM-slug.md`，示例见 `2025-01-opening.md`。
+- 文件顶部使用 frontmatter，支持字段：
+  ```yaml
+  ---
+  title: "科技节启动公告"           # 必填
+  date: "2025-01-10"              # YYYY-MM-DD
+  category: "公告"
+  tags: ["科技节", "启动"]
+  summary: "如未填写将自动截取正文"
+  visibility:
+    - public                      # 可选：public / authenticated / volunteer / author / reviewer / admin
+  author: "TechDay Editorial"
+  author_id: 1
+  published: true                 # 草稿可设为 false
+  ---
+  ```
+- 渲染链路：`gray-matter` 解析 frontmatter，`react-markdown + remark-gfm + remark-math + rehype-katex` 负责 Markdown、数学公式与内嵌 HTML，Tailwind Typography 提供 prose 样式。
+- 角色可见范围：
+  - 缺省或包含 `public` → 所有人可见；
+  - 仅写 `authenticated` → 所有登录用户可见；
+  - 写具体角色数组 → 仅这些角色（含管理员）可查看；
+  - `visibility` 字段可配合 `can_publish_news` 权限控制新闻管理后台访问。
+- Poster PDF 预览在 `PaperDetailPage` 中通过 `<iframe src="...#toolbar=0&navpanes=0&scrollbar=0&view=FitH&zoom=page-fit">` 加载，无浏览器工具栏、自动适配宽度。
 
 ---
 这就是最新的“科技节在线平台”说明。如需具体接口说明或部署脚本，请结合 `docs/ARCHITECTURE.md` 与源码查看。*** End Patch
