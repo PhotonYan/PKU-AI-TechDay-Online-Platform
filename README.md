@@ -41,8 +41,16 @@ Compose 方案包含 `backend` + `frontend`(nginx) + `postgres`。访问 `http:/
 | **成果展示 Table** | 公开浏览；管理员/具模板权限者可在列表直接编辑“创/欢/不”三项投票，后端记录修改日志，详情页展示最近 50 条历史。 |
 | **后台管理** | 管理组织、角色模板、投票展示开关、人员多组织分配、计票权限；一键导出当前人员配置 CSV。 |
 | **奖项管理 / 审阅者** | 新增“审阅者”角色与邀请码注册机制，管理员维护邀请码及奖项列表；审阅者在“奖项管理”页仅能查看自身方向、为通过论文填写推荐/信心度；管理员可查看全部方向、基于推荐记录为作品配置多个奖项标签并筛选。 |
+| **数据库管理** | `/admin/database` 受二次密码保护（默认 `admindatabase`），列出 SQLite 表、查看/编辑/删除/新增行，支持整表删除以及 CSV 覆盖/追加导入。 |
 
 更多架构细节见 `docs/ARCHITECTURE.md`。
+
+### 角色指南
+
+- [docs/ROLE_ADMIN.md](docs/ROLE_ADMIN.md)：管理员后台、参展管理、数据库工具、奖项面板、常见审批流程。
+- [docs/ROLE_VOLUNTEER.md](docs/ROLE_VOLUNTEER.md)：志愿者报名、个人信息、报销、修改密码。
+- [docs/ROLE_AUTHOR.md](docs/ROLE_AUTHOR.md)：作者注册、投稿管理、附件上传与修改。
+- [docs/ROLE_REVIEWER.md](docs/ROLE_REVIEWER.md)：审阅者邀请码流程、奖项推荐与筛选规则。
 
 ## 3. 主要 API
 
