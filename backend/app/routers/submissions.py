@@ -1,9 +1,10 @@
 import csv
 import io
+from pathlib import Path
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import Response
+from fastapi.responses import Response, StreamingResponse
 from sqlalchemy.orm import Session, selectinload
 
 from .. import models, schemas
@@ -26,6 +27,31 @@ def _site_settings(db: Session) -> tuple[bool, bool, set[int] | None]:
         except ValueError:
             visible_awards = None
     return show_votes, can_sort, visible_awards
+
+
+def _poster_download_path(submission: models.Submission) -> Optional[str]:
+    if not submission.poster_path:
+        return None
+    return f"/api/submissions/{submission.id}/poster"
+
+
+def _resolve_poster_path(stored_path: str) -> Path:
+    relative = stored_path.lstrip("/")
+    if relative.startswith("uploads/"):
+        relative = relative[len("uploads/"):]
+    return Path(settings.uploads_dir) / Path(relative)
+
+
+def _can_view_submission(submission: models.Submission, user: Optional[models.User]) -> bool:
+    if submission.review_status == models.SubmissionReviewStatus.approved:
+        return True
+    if not user:
+        return False
+    if user.role == models.UserRole.admin:
+        return True
+    if user.role == models.UserRole.author and submission.author_id == user.id:
+        return True
+    return False
 
 
 @router.get("")
@@ -73,7 +99,7 @@ def list_submissions(
             "track": submission.track.value,
             "archive_consent": submission.archive_consent,
             "paper_url": submission.paper_url,
-            "poster_path": submission.poster_path,
+            "poster_path": _poster_download_path(submission),
             "award": submission.award,
             "award_tags": compute_award_tags(submission, visible_awards),
             "award_badges": compute_award_badges(submission, visible_awards),
@@ -171,6 +197,8 @@ def get_submission(
     submission = db.query(models.Submission).filter(models.Submission.id == submission_id).first()
     if not submission:
         raise HTTPException(status_code=404, detail="Submission not found")
+    if not _can_view_submission(submission, current_user):
+        raise HTTPException(status_code=403, detail="无权查看该投稿")
     show_votes, _, visible_awards = _site_settings(db)
     can_view_logs = False
     if current_user:
@@ -215,7 +243,7 @@ def get_submission(
         "publication_status": submission.publication_status.value,
         "archive_consent": submission.archive_consent,
         "paper_url": submission.paper_url,
-        "poster_path": submission.poster_path,
+        "poster_path": _poster_download_path(submission),
         "award": submission.award,
         "award_tags": compute_award_tags(submission, visible_awards),
         "award_badges": compute_award_badges(submission, visible_awards),
@@ -267,3 +295,36 @@ def update_votes(
     db.add(submission)
     db.commit()
     return {"status": "ok"}
+
+
+@router.get("/{submission_id}/poster")
+def download_submission_poster(
+    submission_id: int,
+    db: Session = Depends(get_db),
+    current_user: Optional[models.User] = Depends(get_optional_user),
+):
+    submission = db.query(models.Submission).filter(models.Submission.id == submission_id).first()
+    if not submission or not submission.poster_path:
+        raise HTTPException(status_code=404, detail="Poster not found")
+    allowed_public = submission.review_status == models.SubmissionReviewStatus.approved and submission.archive_consent
+    has_authenticated_access = bool(current_user) and _can_view_submission(submission, current_user)
+    if not allowed_public and not has_authenticated_access:
+        raise HTTPException(status_code=403, detail="无权访问该 Poster")
+    file_path = _resolve_poster_path(submission.poster_path)
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="Poster 已移除")
+
+    def _iterator():
+        with file_path.open("rb") as handle:
+            while True:
+                chunk = handle.read(8192)
+                if not chunk:
+                    break
+                yield chunk
+
+    disposition = "inline" if allowed_public else "attachment"
+    return StreamingResponse(
+        _iterator(),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'{disposition}; filename="{file_path.name}"'},
+    )

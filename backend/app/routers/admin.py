@@ -2,11 +2,13 @@ import csv
 import io
 import secrets
 import string
+import time
+from collections import defaultdict
 from datetime import datetime
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Response, Header, UploadFile, File, Form
-from sqlalchemy import text
+from fastapi import APIRouter, Depends, HTTPException, Response, Header, UploadFile, File, Form, Request
+from sqlalchemy import text, inspect
 from sqlalchemy.orm import Session
 
 from .. import models, schemas
@@ -17,12 +19,37 @@ router = APIRouter(prefix="/api/admin", tags=["admin"])
 settings = get_settings()
 
 
-def require_database_password_header(
+class RateLimiter:
+    def __init__(self, limit: int, window: int, message: str):
+        self.limit = limit
+        self.window = window
+        self.message = message
+        self.events: defaultdict[str, list[float]] = defaultdict(list)
+
+    def hit(self, key: str):
+        now = time.time()
+        events = [ts for ts in self.events[key] if now - ts < self.window]
+        if len(events) >= self.limit:
+            raise HTTPException(status_code=429, detail=self.message)
+        events.append(now)
+        self.events[key] = events
+
+
+db_console_usage_limiter = RateLimiter(limit=120, window=60, message="数据库控制台请求过于频繁")
+db_console_failure_limiter = RateLimiter(limit=5, window=300, message="数据库密码错误次数过多，请稍后再试")
+
+
+def require_database_console_access(
+    request: Request,
     password: str = Header(..., alias="X-Database-Password"),
-) -> str:
-    if password != settings.database_admin_password:
+    admin: models.User = Depends(require_admin),
+) -> models.User:
+    client_id = request.client.host if request.client else "unknown"
+    if not secrets.compare_digest(password, settings.admin_db_header_secret):
+        db_console_failure_limiter.hit(client_id)
         raise HTTPException(status_code=403, detail="数据库密码错误")
-    return password
+    db_console_usage_limiter.hit(f"{admin.id}:{client_id}")
+    return admin
 
 
 @router.get("/users")
@@ -432,9 +459,12 @@ def admin_renumber_submissions(
 @router.post("/database/login")
 def database_admin_login(
     payload: schemas.DatabaseLoginRequest,
+    request: Request,
     admin: models.User = Depends(require_admin),
 ):
-    if payload.password != settings.database_admin_password:
+    client_id = request.client.host if request.client else "unknown"
+    if not secrets.compare_digest(payload.password, settings.admin_db_header_secret):
+        db_console_failure_limiter.hit(client_id)
         raise HTTPException(status_code=403, detail="数据库密码错误")
     return {"status": "ok"}
 
@@ -442,8 +472,7 @@ def database_admin_login(
 @router.get("/database/tables")
 def list_database_tables(
     db: Session = Depends(get_db),
-    admin: models.User = Depends(require_admin),
-    _password: str = Depends(require_database_password_header),
+    admin: models.User = Depends(require_database_console_access),
 ):
     tables = _fetch_table_names(db)
     return {"tables": tables}
@@ -454,14 +483,13 @@ def get_database_table(
     table_name: str,
     limit: int = 200,
     db: Session = Depends(get_db),
-    admin: models.User = Depends(require_admin),
-    _password: str = Depends(require_database_password_header),
+    admin: models.User = Depends(require_database_console_access),
 ):
     if limit <= 0:
         limit = 200
     _ensure_table_exists(db, table_name)
     safe_name = _sanitize_table_name(table_name)
-    columns = _get_table_columns(db, safe_name)
+    columns = _get_table_columns(db, table_name)
     rows = db.execute(text(f'SELECT * FROM "{safe_name}" LIMIT :limit'), {"limit": limit}).mappings().all()
     primary_key = next((col["name"] for col in columns if col["pk"]), None)
     return {
@@ -477,12 +505,11 @@ def update_database_row(
     pk_value: str,
     payload: schemas.DatabaseRowUpdate,
     db: Session = Depends(get_db),
-    admin: models.User = Depends(require_admin),
-    _password: str = Depends(require_database_password_header),
+    admin: models.User = Depends(require_database_console_access),
 ):
     _ensure_table_exists(db, table_name)
     safe_name = _sanitize_table_name(table_name)
-    columns = _get_table_columns(db, safe_name)
+    columns = _get_table_columns(db, table_name)
     pk_columns = [col for col in columns if col["pk"]]
     if len(pk_columns) != 1:
         raise HTTPException(status_code=400, detail="该表没有可识别的单一主键，暂不支持编辑")
@@ -507,12 +534,11 @@ def create_database_row(
     table_name: str,
     payload: schemas.DatabaseRowUpdate,
     db: Session = Depends(get_db),
-    admin: models.User = Depends(require_admin),
-    _password: str = Depends(require_database_password_header),
+    admin: models.User = Depends(require_database_console_access),
 ):
     _ensure_table_exists(db, table_name)
     safe_name = _sanitize_table_name(table_name)
-    columns = _get_table_columns(db, safe_name)
+    columns = _get_table_columns(db, table_name)
     if not payload.data:
         raise HTTPException(status_code=400, detail="缺少创建内容")
     valid_columns = {col["name"] for col in columns}
@@ -533,12 +559,11 @@ def delete_database_row(
     table_name: str,
     pk_value: str,
     db: Session = Depends(get_db),
-    admin: models.User = Depends(require_admin),
-    _password: str = Depends(require_database_password_header),
+    admin: models.User = Depends(require_database_console_access),
 ):
     _ensure_table_exists(db, table_name)
     safe_name = _sanitize_table_name(table_name)
-    columns = _get_table_columns(db, safe_name)
+    columns = _get_table_columns(db, table_name)
     pk_columns = [col for col in columns if col["pk"]]
     if len(pk_columns) != 1:
         raise HTTPException(status_code=400, detail="该表没有可识别的单一主键，暂不支持删除")
@@ -554,8 +579,7 @@ def delete_database_row(
 def delete_database_table(
     table_name: str,
     db: Session = Depends(get_db),
-    admin: models.User = Depends(require_admin),
-    _password: str = Depends(require_database_password_header),
+    admin: models.User = Depends(require_database_console_access),
 ):
     _ensure_table_exists(db, table_name)
     safe_name = _sanitize_table_name(table_name)
@@ -570,15 +594,14 @@ def import_database_table(
     mode: str = Form(...),
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
-    admin: models.User = Depends(require_admin),
-    _password: str = Depends(require_database_password_header),
+    admin: models.User = Depends(require_database_console_access),
 ):
     mode = mode.lower()
     if mode not in {"overwrite", "append"}:
         raise HTTPException(status_code=400, detail="未知导入模式")
     _ensure_table_exists(db, table_name)
     safe_name = _sanitize_table_name(table_name)
-    columns = _get_table_columns(db, safe_name)
+    columns = _get_table_columns(db, table_name)
     table_columns = [col["name"] for col in columns]
     try:
         raw_bytes = file.file.read()
@@ -617,11 +640,17 @@ def import_database_table(
     return {"status": "imported", "rows": len(rows_to_insert), "mode": mode}
 
 
+def _get_inspector(db: Session):
+    bind = db.get_bind()
+    if not bind:
+        raise HTTPException(status_code=500, detail="数据库连接不可用")
+    return inspect(bind)
+
+
 def _fetch_table_names(db: Session) -> List[str]:
-    rows = db.execute(
-        text("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name")
-    ).fetchall()
-    return [row[0] for row in rows]
+    inspector = _get_inspector(db)
+    tables = inspector.get_table_names()
+    return sorted(tables)
 
 
 def _ensure_table_exists(db: Session, table_name: str) -> None:
@@ -634,18 +663,23 @@ def _sanitize_table_name(table_name: str) -> str:
     return table_name.replace('"', '""')
 
 
-def _get_table_columns(db: Session, safe_table_name: str) -> List[dict]:
-    columns_raw = db.execute(text(f'PRAGMA table_info("{safe_table_name}")')).mappings().all()
-    return [
-        {
-            "name": column["name"],
-            "type": column["type"],
-            "notnull": bool(column["notnull"]),
-            "default_value": column["dflt_value"],
-            "pk": bool(column["pk"]),
-        }
-        for column in columns_raw
-    ]
+def _get_table_columns(db: Session, table_name: str) -> List[dict]:
+    inspector = _get_inspector(db)
+    columns_raw = inspector.get_columns(table_name)
+    pk_constraint = inspector.get_pk_constraint(table_name) or {}
+    pk_columns = set(pk_constraint.get("constrained_columns") or [])
+    normalized = []
+    for column in columns_raw:
+        normalized.append(
+            {
+                "name": column["name"],
+                "type": str(column.get("type", "")),
+                "notnull": bool(column.get("nullable") is False),
+                "default_value": column.get("default"),
+                "pk": column["name"] in pk_columns,
+            }
+        )
+    return normalized
 
 
 def _normalize_code(code: str) -> str:

@@ -2,7 +2,6 @@ from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 from sqlalchemy import inspect, text
 
 from .config import get_settings
@@ -23,7 +22,7 @@ from .routers import (
 )
 
 settings = get_settings()
-Path(settings.upload_dir).mkdir(parents=True, exist_ok=True)
+Path(settings.uploads_dir).mkdir(parents=True, exist_ok=True)
 Path(settings.posts_dir).mkdir(parents=True, exist_ok=True)
 
 app = FastAPI(title=settings.project_name)
@@ -46,9 +45,6 @@ app.include_router(admin.router)
 app.include_router(reviewers.router)
 app.include_router(awards.router)
 app.include_router(posts.router)
-
-app.mount("/uploads", StaticFiles(directory=settings.upload_dir), name="uploads")
-
 
 def ensure_column(db, table: str, column: str, column_def: str):
     inspector = inspect(engine)
@@ -98,10 +94,6 @@ def startup_event():
                 password_hash=get_password_hash(settings.admin_password),
                 role=models.UserRole.admin,
             )
-            db.add(admin_user)
-            db.commit()
-        else:
-            admin_user.password_hash = get_password_hash(settings.admin_password)
             db.add(admin_user)
             db.commit()
         if not db.query(models.SiteSettings).first():

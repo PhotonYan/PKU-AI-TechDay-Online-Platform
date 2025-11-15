@@ -36,12 +36,16 @@ const ReviewerRegisterPage = () => {
       .catch(() => setDirections([]));
   }, []);
 
+  const normalizeInviteCode = (code: string) => code.trim().toUpperCase();
+
   const checkInvite = async () => {
     if (!form.invite_code) return;
     setChecking(true);
     setError(null);
     try {
-      const data = (await apiClient(`/api/reviewers/invites/${form.invite_code.trim()}`)) as InviteInfo;
+      const normalized = normalizeInviteCode(form.invite_code);
+      setForm((prev) => ({ ...prev, invite_code: normalized }));
+      const data = (await apiClient(`/api/reviewers/invites/${normalized}`)) as InviteInfo;
       if (data.is_used) {
         setError("该邀请码已被使用");
         setInviteInfo(null);
@@ -65,13 +69,15 @@ const ReviewerRegisterPage = () => {
     setError(null);
     setMessage(null);
     try {
+      const normalizedCode = normalizeInviteCode(form.invite_code);
+      setForm((prev) => ({ ...prev, invite_code: normalizedCode }));
       await apiClient("/api/reviewers/register", {
         method: "POST",
         body: JSON.stringify({
           name: form.name,
           email: form.email,
           password: form.password,
-          invite_code: form.invite_code.trim(),
+          invite_code: normalizedCode,
           direction_id: inviteInfo?.preset_direction_id
             ? inviteInfo?.preset_direction_id
             : form.direction_id
@@ -141,6 +147,7 @@ const ReviewerRegisterPage = () => {
               {checking ? "验证中..." : "验证"}
             </button>
           </div>
+          <p className="text-xs text-slate-500 mt-1">邀请码不区分大小写，系统将自动转换为大写。</p>
           {inviteInfo?.preset_direction_name && (
             <p className="text-xs text-slate-500 mt-1">
               该邀请码预设方向：{inviteInfo.preset_direction_name}（注册后不可更改）

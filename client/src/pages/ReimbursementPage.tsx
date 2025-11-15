@@ -10,7 +10,8 @@ interface Reimbursement {
   quantity?: number;
   amount: number;
   invoice_company: string;
-  file_path?: string;
+  has_attachment: boolean;
+  attachment_url?: string | null;
   status: string;
   admin_note?: string;
   applicant_name?: string;
@@ -76,6 +77,8 @@ const ReimbursementPage = () => {
     }
     return orgOptionList;
   }, [orgOptionsKey, form.organization]);
+
+  const resolveApiUrl = (path: string) => (path.startsWith("http") ? path : `${apiClient.baseURL}${path}`);
 
   const loadData = () => {
     if (!token) return;
@@ -156,6 +159,32 @@ const ReimbursementPage = () => {
       setFeedback({ type: "error", text: (err as Error).message });
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const downloadAttachment = async (item: Reimbursement) => {
+    if (!token || !item.attachment_url) return;
+    try {
+      const res = await fetch(resolveApiUrl(item.attachment_url), {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (!res.ok) {
+        throw new Error("附件下载失败");
+      }
+      const blob = await res.blob();
+      const disposition = res.headers.get("Content-Disposition") || "";
+      const match = disposition.match(/filename="?([^";]+)"?/i);
+      const filename = match?.[1] || `${item.project_name || "attachment"}.pdf`;
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setFeedback({ type: "error", text: (err as Error).message });
     }
   };
 
@@ -315,10 +344,10 @@ const ReimbursementPage = () => {
                       {statusMap[item.status] || item.status}
                     </td>
                     <td onClick={(e) => e.stopPropagation()}>
-                      {item.file_path ? (
-                        <a className="text-blue-600" href={item.file_path} target="_blank" rel="noreferrer">
-                          查看
-                        </a>
+                      {item.has_attachment && item.attachment_url ? (
+                        <button className="text-blue-600" type="button" onClick={() => downloadAttachment(item)}>
+                          下载附件
+                        </button>
                       ) : (
                         "-"
                       )}
@@ -405,10 +434,10 @@ const ReimbursementPage = () => {
                           </div> */}
                           <div className="md:col-span-2">
                             <div className="text-slate-500 text-xs">附件</div>
-                            {item.file_path ? (
-                              <a className="text-blue-600" href={item.file_path} target="_blank" rel="noreferrer">
-                                查看上传文件
-                              </a>
+                            {item.has_attachment && item.attachment_url ? (
+                              <button className="text-blue-600" type="button" onClick={() => downloadAttachment(item)}>
+                                下载附件
+                              </button>
                             ) : (
                               <div>无</div>
                             )}

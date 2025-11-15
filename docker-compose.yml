@@ -12,14 +12,13 @@ services:
     build:
       context: .
       dockerfile: backend/Dockerfile
-    environment:
-      DATABASE_URL: postgresql+psycopg2://postgres:postgres@db:5432/techday
-      JWT_SECRET: supersecretjwt
-      ADMIN_EMAIL: admin@techday.local
-      ADMIN_PASSWORD: AdminPass123
-      UPLOAD_DIR: /app/uploads
+    env_file:
+      - backend/.env.docker
+    ports:
+      - "8000:8000"
     volumes:
-      - uploads_data:/app/uploads
+      - ./data/uploads:/data/uploads
+      - ./data/posts:/data/posts
     depends_on:
       - db
   nginx:
@@ -30,8 +29,5 @@ services:
       - "8080:80"
     depends_on:
       - backend
-    volumes:
-      - uploads_data:/usr/share/nginx/html/uploads:ro
 volumes:
   db_data:
-  uploads_data:

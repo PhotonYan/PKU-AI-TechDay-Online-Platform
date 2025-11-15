@@ -3,13 +3,14 @@
 FastAPI + React 实现的“报销系统 / 成果展示 / 志愿者管理”一体化平台，集成角色权限、投票日志、CSV 导入导出、文件上传与 Docker 部署。
 
 - 默认管理员：`admin@techday.local` / `AdminPass123`
-- 关键路径：`backend/uploads/`（附件存储）、`sample-data/papers.csv`（论文导入示例）
+- 关键路径：`data/uploads/`（运行时附件存储）、`sample-data/papers.csv`（论文导入示例）
 
 ## 1. 快速开始
 
 ### 后端
 ```bash
 cd backend
+cp .env.example .env  # 填写 JWT/数据库等密钥
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 uvicorn app.main:app --reload  # http://127.0.0.1:8000
@@ -23,7 +24,7 @@ cd client
 npm install
 npm run dev  # http://127.0.0.1:5173
 ```
-Vite dev server 代理 `/api` 与 `/uploads` 到后端，支持热更新；`npm run build` 产物位于 `client/dist/`。
+ Vite dev server 代理 `/api` 到后端，支持热更新；`npm run build` 产物位于 `client/dist/`。
 
 ### Docker
 ```bash
@@ -37,7 +38,7 @@ Compose 方案包含 `backend` + `frontend`(nginx) + `postgres`。访问 `http:/
 | 模块 | 亮点能力 |
 | --- | --- |
 | **志愿者系统** | 报名表收集学号/学院/志愿方向/服务时段/计票意愿；登录后查看多组织职责（管理员可分配多个工作组）。 |
-| **报销系统** | 志愿者只能选择自身工作组、编辑自己的记录；管理员可审核、导出 CSV、删除任意申请。上传附件保存在 `/uploads/reimbursements/*`。 |
+| **报销系统** | 志愿者只能选择自身工作组、编辑自己的记录；管理员可审核、导出 CSV、删除任意申请。上传附件写入挂载卷 `/data/uploads/reimbursements/*`，仅通过授权 API 下载。 |
 | **成果展示 Table** | 公开浏览；管理员/具模板权限者可在列表直接编辑“创/欢/不”三项投票，后端记录修改日志，详情页展示最近 50 条历史。 |
 | **后台管理** | 管理组织、角色模板、投票展示开关、人员多组织分配、计票权限；一键导出当前人员配置 CSV。 |
 | **奖项管理 / 审阅者** | 新增“审阅者”角色与邀请码注册机制，管理员维护邀请码及奖项列表；审阅者在“奖项管理”页仅能查看自身方向、为通过论文填写推荐/信心度；管理员可查看全部方向、基于推荐记录为作品配置多个奖项标签并筛选。 |
@@ -77,7 +78,7 @@ Compose 方案包含 `backend` + `frontend`(nginx) + `postgres`。访问 `http:/
 │   └── requirements.txt
 ├── client/                 # Vite + React + TS 前端
 │   ├── src/pages           # login/reimbursements/papers/admin/volunteer
-│   └── vite.config.ts      # /api 与 /uploads 代理
+│   └── vite.config.ts      # /api 代理
 ├── deploy/                 # nginx 配置 & Dockerfile
 ├── docs/ARCHITECTURE.md    # 架构说明
 ├── sample-data/papers.csv  # CSV 样例（含“序号”列）
@@ -87,7 +88,7 @@ Compose 方案包含 `backend` + `frontend`(nginx) + `postgres`。访问 `http:/
 ## 6. 开发提示
 - 后端热更新依赖 `uvicorn --reload`，首次启动会自动执行 `ALTER TABLE`（例如 `student_id`、`sequence_no`）。若切换到 PostgreSQL，只需设置 `DATABASE_URL`。
 - 前端登录状态存于 `localStorage.token`，调试时可清空；登录后点击导航栏用户名即可进入“个人信息”。
-- 上传文件由 FastAPI 静态路由 `/uploads/*` 提供；Vite dev server 也代理 `/uploads`，因此开发模式下访问链接不会 404。
+- 上传文件通过受保护的 API 下载，请确保部署时挂载 `data/uploads/` 目录。
 - 若需要更多 CSV 字段或权限调整，可按 `backend/app/routers/*.py` 中现有模式扩展。
 
 ## 7. 新闻公告 / Markdown 说明

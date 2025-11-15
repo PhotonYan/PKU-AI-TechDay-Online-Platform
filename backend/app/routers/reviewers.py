@@ -10,7 +10,7 @@ router = APIRouter(prefix="/api/reviewers", tags=["reviewers"])
 
 
 def _normalize_code(code: str) -> str:
-    return code.strip()
+    return code.strip().upper()
 
 
 @router.get("/invites/{code}")

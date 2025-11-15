@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { apiClient } from "../api/client";
+import { useAuth } from "../context/AuthContext";
 
 interface VoteLog {
   id: number;
@@ -89,19 +90,48 @@ const getBadgeTextColor = (hex?: string) => {
 const PaperDetailPage = () => {
   const { id } = useParams();
   const [paper, setPaper] = useState<PaperDetail | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const { token } = useAuth();
 
   useEffect(() => {
     if (!id) return;
-    apiClient(`/api/submissions/${id}`).then(setPaper);
-  }, [id]);
+    let mounted = true;
+    setLoading(true);
+    apiClient(`/api/submissions/${id}`, { token: token || undefined })
+      .then((data) => {
+        if (!mounted) return;
+        setPaper(data as PaperDetail);
+        setError(null);
+      })
+      .catch((err) => {
+        if (!mounted) return;
+        setError((err as Error).message);
+        setPaper(null);
+      })
+      .finally(() => {
+        if (mounted) setLoading(false);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, [id, token]);
 
-  if (!paper) return <div>加载中...</div>;
+  if (loading) {
+    return <div className="text-center text-slate-500 py-10">加载中...</div>;
+  }
 
-  const rawPosterSrc = paper.poster_path
-    ? paper.poster_path.startsWith("http")
-      ? paper.poster_path
-      : `/${paper.poster_path}`
-    : null;
+  if (error) {
+    return (
+      <div className="text-center text-red-600 py-10">
+        {error}
+      </div>
+    );
+  }
+
+  if (!paper) return null;
+
+  const rawPosterSrc = paper.poster_path || null;
   const posterSrc = rawPosterSrc
     ? `${rawPosterSrc}${rawPosterSrc.includes("#") ? "&" : "#"}toolbar=0&navpanes=0&scrollbar=0&view=FitH&zoom=page-fit`
     : null;

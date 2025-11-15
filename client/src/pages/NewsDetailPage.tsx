@@ -4,7 +4,6 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
-import rehypeRaw from "rehype-raw";
 import { useAuth } from "../context/AuthContext";
 import { fetchNewsPost, NewsPostDetail } from "../api/posts";
 import { formatPostDate } from "../utils/date";
@@ -93,7 +92,7 @@ const NewsDetailPage = () => {
         </div>
       </header>
       <div className="mt-8 prose prose-slate max-w-none">
-        <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeRaw, rehypeKatex]}>
+        <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]} skipHtml>
           {post.content}
         </ReactMarkdown>
       </div>

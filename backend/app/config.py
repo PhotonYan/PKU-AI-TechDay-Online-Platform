@@ -1,21 +1,26 @@
-import os
 from functools import lru_cache
-from pathlib import Path
 
-BASE_DIR = Path(__file__).resolve().parents[2]
+from pydantic import BaseSettings, Field
 
-class Settings:
-    project_name: str = "TechDay Platform"
-    database_url: str = os.getenv("DATABASE_URL", "sqlite:///./techday.db")
-    jwt_secret: str = os.getenv("JWT_SECRET", "supersecretjwt")
-    jwt_algorithm: str = "HS256"
-    access_token_expire_minutes: int = 60 * 24
-    upload_dir: str = os.getenv("UPLOAD_DIR", "uploads")
-    admin_email: str = os.getenv("ADMIN_EMAIL", "admin@techday.local")
-    admin_password: str = os.getenv("ADMIN_PASSWORD", "AdminPass123")
-    database_admin_password: str = os.getenv("DATABASE_ADMIN_PASSWORD", "admindatabase")
-    posts_dir: str = os.getenv("POSTS_DIR", str(BASE_DIR / "client" / "src" / "assets" / "posts"))
 
-@lru_cache
+class Settings(BaseSettings):
+    env: str = Field("production", env="ENV")
+    project_name: str = Field("TechDay Platform", env="PROJECT_NAME")
+    jwt_secret: str = Field(..., env="JWT_SECRET")
+    jwt_algorithm: str = Field("HS256", env="JWT_ALGORITHM")
+    access_token_expire_minutes: int = Field(60 * 24, env="ACCESS_TOKEN_EXPIRE_MINUTES")
+    admin_email: str = Field(..., env="ADMIN_EMAIL")
+    admin_password: str = Field(..., env="ADMIN_PASSWORD")
+    database_url: str = Field(..., env="DATABASE_URL")
+    posts_dir: str = Field("/data/posts", env="POSTS_DIR")
+    uploads_dir: str = Field("/data/uploads", env="UPLOADS_DIR")
+    admin_db_header_secret: str = Field(..., env="ADMIN_DB_HEADER_SECRET")
+
+    class Config:
+        env_file = ".env"
+        env_file_encoding = "utf-8"
+
+
+@lru_cache()
 def get_settings() -> Settings:
     return Settings()

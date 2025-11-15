@@ -6,7 +6,7 @@
 | 前端 | Vite + React + TypeScript + React Router + TailwindCSS |
 | 后端 | FastAPI + SQLAlchemy + Pydantic + python-jose + Passlib |
 | 数据库 | PostgreSQL（开发默认 SQLite，启动时自动建表与字段） |
-| 对象存储 | 本地 `backend/uploads/`，nginx 暴露 `/uploads/*` |
+| 对象存储 | 本地持久化卷 `data/uploads/`，通过受保护 API 提供 |
 | 容器 | Docker Compose：`backend`(FastAPI) + `frontend`(Vite build) + `postgres` + `nginx` |
 
 ## 2. 模块划分
@@ -42,11 +42,11 @@ submissions (
   review_status, created_at, updated_at
 )
 paper_vote_logs (id, paper_id, user_id, field_name, old_value, new_value, created_at)
-news posts (存放于 client/src/assets/posts，frontmatter: title/date/category/tags/summary/visibility/author/published/content)
+news posts (运行时存放于 `/data/posts`，frontmatter: title/date/category/tags/summary/visibility/author/published/content)
 site_settings (id, show_vote_data, vote_sort_enabled, vote_edit_role_template_id)
 ```
 
-> `volunteer_tracks` 以逗号分隔，一旦管理员在后台为某人勾选多个工作组，该人报销时即可下拉选择对应组织；无组织时自动回退为“未分配组织”。
+> `volunteer_tracks` 以逗号分隔，一旦管理员在后台为某人勾选多个工作组，该人报销时即可下拉选择对应组织；无组织时自动回退为“未分配组织”。报销附件与 Poster 均写入 `/data/uploads`，通过授权 API 访问。
 
 ## 4. 权限矩阵
 | 能力 | 志愿者 | 管理员 | 拥有 `can_edit_vote_data` 模板 |
@@ -98,8 +98,8 @@ site_settings (id, show_vote_data, vote_sort_enabled, vote_edit_role_template_id
 - 启动脚本自动创建默认管理员及缺失列，避免多环境迁移遗漏。
 
 ## 8. 部署/运行
-1. 本地开发：`uvicorn app.main:app --reload` + `npm run dev`。后端默认 SQLite，上传文件存 `backend/uploads/`。
-2. 生产：`docker compose build && docker compose up -d`，nginx 暴露 `http://localhost:8080`，其中 `/api` 反代后端、`/uploads` 提供静态文件。
+1. 本地开发：`uvicorn app.main:app --reload` + `npm run dev`。后端默认 SQLite，上传文件存 `data/uploads/`。
+2. 生产：`docker compose build && docker compose up -d`，nginx 暴露 `http://localhost:8080`，由 `/api` 反代后端，前端通过 API 访问附件与 Markdown。
 3. 默认账号：`admin@techday.local / AdminPass123`，首次启动自动写入。
 
 更多运行细节与使用说明请参阅根目录 `README.md`。

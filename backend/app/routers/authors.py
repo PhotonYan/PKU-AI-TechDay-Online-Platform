@@ -31,15 +31,15 @@ def _save_poster(upload: UploadFile | None) -> Optional[str]:
     if upload.content_type not in {"application/pdf", "application/octet-stream"}:
         raise HTTPException(status_code=400, detail="仅支持上传 PDF 文件")
     current_year = datetime.utcnow().year
-    poster_dir = Path(settings.upload_dir) / "posters" / str(current_year)
+    poster_dir = Path(settings.uploads_dir) / "posters" / str(current_year)
     poster_dir.mkdir(parents=True, exist_ok=True)
     suffix = Path(upload.filename or "poster.pdf").suffix or ".pdf"
     filename = f"{uuid4().hex}{suffix}"
     rel_path = Path("posters") / str(current_year) / filename
-    abs_path = Path(settings.upload_dir) / rel_path
+    abs_path = Path(settings.uploads_dir) / rel_path
     with abs_path.open("wb") as buffer:
         shutil.copyfileobj(upload.file, buffer)
-    return f"uploads/{rel_path.as_posix()}"
+    return rel_path.as_posix()
 
 
 def _delete_poster(path: Optional[str]):
@@ -50,7 +50,7 @@ def _delete_poster(path: Optional[str]):
         relative = Path(path[len(prefix):]) if path.startswith(prefix) else Path(path)
     except ValueError:
         relative = Path(path)
-    abs_path = Path(settings.upload_dir) / relative
+    abs_path = Path(settings.uploads_dir) / relative
     if abs_path.exists():
         abs_path.unlink()
 
@@ -64,6 +64,10 @@ def _require_direction(db: Session, direction_id: Optional[int]) -> int:
     return direction_id
 
 
+def _poster_api_path(submission: models.Submission) -> Optional[str]:
+    return f"/api/submissions/{submission.id}/poster" if submission.poster_path else None
+
+
 def _serialize_author_submission(submission: models.Submission) -> dict:
     return {
         "id": submission.id,
@@ -75,6 +79,7 @@ def _serialize_author_submission(submission: models.Submission) -> dict:
         "publication_status": submission.publication_status.value,
         "authors": submission.authors,
         "year": submission.year,
+        "poster_path": _poster_api_path(submission),
     }
 
 
@@ -146,7 +151,7 @@ def get_author_submission(
         "publication_status": submission.publication_status.value,
         "archive_consent": submission.archive_consent,
         "paper_url": submission.paper_url,
-        "poster_path": submission.poster_path,
+        "poster_path": _poster_api_path(submission),
     }
 
 

@@ -1,13 +1,19 @@
+import logging
+from pathlib import Path
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, Response
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from .. import models, schemas
+from ..config import get_settings
 from ..dependencies import get_current_user, get_db, require_admin
 from ..utils.files import save_upload_file
 
 router = APIRouter(prefix="/api/reimbursements", tags=["reimbursements"])
+settings = get_settings()
+logger = logging.getLogger("techday.reimbursements")
 
 STATUS_LABELS = {
     models.ReimbursementStatus.pending.value: "待审核",
@@ -28,6 +34,38 @@ def _csv_escape(value: str) -> str:
     return '"' + value.replace('"', '""') + '"'
 
 
+def _attachment_url(record: models.Reimbursement) -> Optional[str]:
+    if not record.file_path:
+        return None
+    return f"/api/reimbursements/{record.id}/attachment"
+
+
+def _resolve_file_path(stored_path: str) -> Path:
+    candidate = stored_path.lstrip("/")
+    if candidate.startswith("uploads/"):
+        candidate = candidate[len("uploads/"):]
+    return Path(settings.uploads_dir) / Path(candidate)
+
+
+def _serialize_reimbursement(record: models.Reimbursement, applicant_name: Optional[str] = None):
+    return schemas.ReimbursementResponse(
+        id=record.id,
+        project_name=record.project_name,
+        organization=record.organization,
+        content=record.content,
+        quantity=record.quantity,
+        amount=record.amount,
+        invoice_company=record.invoice_company,
+        status=record.status,
+        admin_note=record.admin_note,
+        applicant_name=applicant_name or (record.applicant.name if record.applicant else None),
+        created_at=record.created_at,
+        updated_at=record.updated_at,
+        has_attachment=bool(record.file_path),
+        attachment_url=_attachment_url(record),
+    )
+
+
 @router.get("", response_model=List[schemas.ReimbursementResponse])
 def list_reimbursements(
     db: Session = Depends(get_db),
@@ -37,24 +75,7 @@ def list_reimbursements(
     if current_user.role != models.UserRole.admin:
         query = query.filter(models.Reimbursement.applicant_id == current_user.id)
     reimbursements = query.order_by(models.Reimbursement.created_at.desc()).all()
-    return [
-        schemas.ReimbursementResponse(
-            id=item.id,
-            project_name=item.project_name,
-            organization=item.organization,
-            content=item.content,
-            quantity=item.quantity,
-            amount=item.amount,
-            invoice_company=item.invoice_company,
-            file_path=item.file_path,
-            status=item.status,
-            admin_note=item.admin_note,
-            applicant_name=item.applicant.name if item.applicant else None,
-            created_at=item.created_at,
-            updated_at=item.updated_at,
-        )
-        for item in reimbursements
-    ]
+    return [_serialize_reimbursement(item) for item in reimbursements]
 
 
 def _persist_reimbursement(
@@ -115,21 +136,7 @@ def create_reimbursement(
     db.add(reimbursement)
     db.commit()
     db.refresh(reimbursement)
-    return schemas.ReimbursementResponse(
-        id=reimbursement.id,
-        project_name=reimbursement.project_name,
-        organization=reimbursement.organization,
-        content=reimbursement.content,
-        quantity=reimbursement.quantity,
-        amount=reimbursement.amount,
-        invoice_company=reimbursement.invoice_company,
-        file_path=reimbursement.file_path,
-        status=reimbursement.status,
-        admin_note=reimbursement.admin_note,
-        applicant_name=current_user.name,
-        created_at=reimbursement.created_at,
-        updated_at=reimbursement.updated_at,
-    )
+    return _serialize_reimbursement(reimbursement, applicant_name=current_user.name)
 
 
 @router.put("/{reimbursement_id}", response_model=schemas.ReimbursementResponse)
@@ -177,21 +184,7 @@ def update_reimbursement(
     db.add(reimbursement)
     db.commit()
     db.refresh(reimbursement)
-    return schemas.ReimbursementResponse(
-        id=reimbursement.id,
-        project_name=reimbursement.project_name,
-        organization=reimbursement.organization,
-        content=reimbursement.content,
-        quantity=reimbursement.quantity,
-        amount=reimbursement.amount,
-        invoice_company=reimbursement.invoice_company,
-        file_path=reimbursement.file_path,
-        status=reimbursement.status,
-        admin_note=reimbursement.admin_note,
-        applicant_name=current_user.name,
-        created_at=reimbursement.created_at,
-        updated_at=reimbursement.updated_at,
-    )
+    return _serialize_reimbursement(reimbursement, applicant_name=current_user.name)
 
 
 @router.delete("/{reimbursement_id}")
@@ -213,6 +206,38 @@ def delete_reimbursement(
     return {"status": "deleted"}
 
 
+@router.get("/{reimbursement_id}/attachment")
+def download_reimbursement_attachment(
+    reimbursement_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    reimbursement = db.query(models.Reimbursement).filter(models.Reimbursement.id == reimbursement_id).first()
+    if not reimbursement or not reimbursement.file_path:
+        raise HTTPException(status_code=404, detail="附件不存在")
+    if current_user.role != models.UserRole.admin and reimbursement.applicant_id != current_user.id:
+        raise HTTPException(status_code=403, detail="无权下载该附件")
+    file_path = _resolve_file_path(reimbursement.file_path)
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="附件已被删除")
+
+    logger.info("Attachment download: reimbursement_id=%s user_id=%s", reimbursement.id, current_user.id)
+
+    def _iterator():
+        with file_path.open("rb") as handle:
+            while True:
+                chunk = handle.read(8192)
+                if not chunk:
+                    break
+                yield chunk
+
+    return StreamingResponse(
+        _iterator(),
+        media_type="application/octet-stream",
+        headers={"Content-Disposition": f'attachment; filename="{file_path.name}"'},
+    )
+
+
 @router.post("/{reimbursement_id}/review", response_model=schemas.ReimbursementResponse)
 def review_reimbursement(
     reimbursement_id: int,
@@ -228,21 +253,7 @@ def review_reimbursement(
     db.add(reimbursement)
     db.commit()
     db.refresh(reimbursement)
-    return schemas.ReimbursementResponse(
-        id=reimbursement.id,
-        project_name=reimbursement.project_name,
-        organization=reimbursement.organization,
-        content=reimbursement.content,
-        quantity=reimbursement.quantity,
-        amount=reimbursement.amount,
-        invoice_company=reimbursement.invoice_company,
-        file_path=reimbursement.file_path,
-        status=reimbursement.status,
-        admin_note=reimbursement.admin_note,
-        applicant_name=reimbursement.applicant.name if reimbursement.applicant else None,
-        created_at=reimbursement.created_at,
-        updated_at=reimbursement.updated_at,
-    )
+    return _serialize_reimbursement(reimbursement)
 
 
 @router.get("/export/csv")

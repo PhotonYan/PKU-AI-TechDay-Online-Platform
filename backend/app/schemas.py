@@ -96,7 +96,8 @@ class ReimbursementCreate(ReimbursementBase):
 class ReimbursementResponse(ReimbursementBase):
     id: int
     status: ReimbursementStatus
-    file_path: Optional[str]
+    has_attachment: bool = False
+    attachment_url: Optional[str]
     admin_note: Optional[str]
     applicant_name: Optional[str]
     created_at: datetime

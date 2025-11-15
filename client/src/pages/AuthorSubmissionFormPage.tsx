@@ -45,6 +45,7 @@ const AuthorSubmissionFormPage = () => {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const resolveApiUrl = (path: string) => (path.startsWith("http") ? path : `${apiClient.baseURL}${path}`);
 
   useEffect(() => {
     apiClient("/api/directions")
@@ -113,6 +114,32 @@ const AuthorSubmissionFormPage = () => {
       setError((err as Error).message);
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const downloadPoster = async () => {
+    if (!token || !existingPoster) return;
+    try {
+      const res = await fetch(resolveApiUrl(existingPoster), {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (!res.ok) {
+        throw new Error("无法获取已上传的 Poster");
+      }
+      const blob = await res.blob();
+      const disposition = res.headers.get("Content-Disposition") || "";
+      const match = disposition.match(/filename="?([^";]+)"?/i);
+      const filename = match?.[1] || "poster.pdf";
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setError((err as Error).message);
     }
   };
 
@@ -233,9 +260,9 @@ const AuthorSubmissionFormPage = () => {
             <label className="text-sm font-medium">PDF Poster（可选）</label>
             <input type="file" accept="application/pdf" className="mt-1 block w-full text-sm" onChange={(e) => setPosterFile(e.target.files?.[0] || null)} />
             {existingPoster && !posterFile && (
-              <a className="text-xs text-blue-600" href={`/${existingPoster}`} target="_blank" rel="noreferrer">
-                查看已上传文件
-              </a>
+              <button type="button" className="text-xs text-blue-600" onClick={downloadPoster}>
+                下载已上传文件
+              </button>
             )}
           </div>
         </div>
