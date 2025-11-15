@@ -30,11 +30,12 @@ def _save_poster(upload: UploadFile | None) -> Optional[str]:
         return None
     if upload.content_type not in {"application/pdf", "application/octet-stream"}:
         raise HTTPException(status_code=400, detail="仅支持上传 PDF 文件")
-    poster_dir = Path(settings.upload_dir) / "posters"
+    current_year = datetime.utcnow().year
+    poster_dir = Path(settings.upload_dir) / "posters" / str(current_year)
     poster_dir.mkdir(parents=True, exist_ok=True)
     suffix = Path(upload.filename or "poster.pdf").suffix or ".pdf"
     filename = f"{uuid4().hex}{suffix}"
-    rel_path = Path("posters") / filename
+    rel_path = Path("posters") / str(current_year) / filename
     abs_path = Path(settings.upload_dir) / rel_path
     with abs_path.open("wb") as buffer:
         shutil.copyfileobj(upload.file, buffer)

@@ -2,6 +2,7 @@ import csv
 import io
 import secrets
 import string
+from datetime import datetime
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Response, Header, UploadFile, File, Form
@@ -399,21 +400,33 @@ def admin_delete_submission(
 @router.post("/submissions/renumber")
 def admin_renumber_submissions(
     track: models.SubmissionTrack,
+    year: Optional[int] = None,
     db: Session = Depends(get_db),
     admin: models.User = Depends(require_admin),
 ):
-    approved = (
+    base_query = (
         db.query(models.Submission)
         .filter(models.Submission.track == track)
         .filter(models.Submission.review_status == models.SubmissionReviewStatus.approved)
-        .order_by(models.Submission.created_at.asc())
-        .all()
     )
-    for idx, submission in enumerate(approved, start=1):
-        submission.sequence_no = idx
-        db.add(submission)
+    if year is not None:
+        base_query = base_query.filter(models.Submission.year == year)
+    submissions = base_query.order_by(models.Submission.year.asc(), models.Submission.created_at.asc()).all()
+    if not submissions:
+        return {"status": "ok", "renumbered": 0, "years": []}
+    groups: dict[int, list[models.Submission]] = {}
+    for submission in submissions:
+        group_year = submission.year or 0
+        groups.setdefault(group_year, []).append(submission)
+    renumbered = 0
+    for group_year, group in groups.items():
+        ordered = sorted(group, key=lambda sub: sub.created_at)
+        for idx, submission in enumerate(ordered, start=1):
+            submission.sequence_no = idx
+            db.add(submission)
+            renumbered += 1
     db.commit()
-    return {"status": "ok", "renumbered": len(approved)}
+    return {"status": "ok", "renumbered": renumbered, "years": sorted(groups.keys())}
 
 
 @router.post("/database/login")

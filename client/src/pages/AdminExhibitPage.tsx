@@ -29,6 +29,10 @@ const statusLabels: Record<string, string> = {
   rejected: "未通过",
 };
 
+const currentYear = new Date().getFullYear();
+const START_YEAR = 2024;
+const fixedYears = Array.from({ length: Math.max(1, currentYear - START_YEAR + 1) }, (_, idx) => currentYear - idx);
+
 const AdminExhibitPage = () => {
   const { token } = useAuth();
   const [track, setTrack] = useState("poster");
@@ -37,8 +41,8 @@ const AdminExhibitPage = () => {
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
-  const [yearFilter, setYearFilter] = useState("all");
-  const [yearOptions, setYearOptions] = useState<number[]>([]);
+  const [yearFilter, setYearFilter] = useState(String(currentYear));
+  const [yearOptions] = useState<number[]>(fixedYears);
 
   const loadRows = () => {
     if (!token) return;
@@ -51,11 +55,6 @@ const AdminExhibitPage = () => {
       .then((data) => {
         const list = data as AdminSubmissionRow[];
         setRows(list);
-        if (yearFilter === "all") {
-          const years = Array.from(new Set(list.map((item) => item.year).filter(Boolean))) as number[];
-          years.sort((a, b) => b - a);
-          setYearOptions(years);
-        }
       })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
@@ -103,7 +102,11 @@ const AdminExhibitPage = () => {
   const renumber = async () => {
     if (!token) return;
     try {
-      await apiClient(`/api/admin/submissions/renumber?track=${track}`, { method: "POST", token });
+      const params = new URLSearchParams({ track });
+      if (yearFilter !== "all") {
+        params.set("year", yearFilter);
+      }
+      await apiClient(`/api/admin/submissions/renumber?${params.toString()}`, { method: "POST", token });
       setInfo("序号已重新生成");
       loadRows();
     } catch (err) {
@@ -141,7 +144,7 @@ const AdminExhibitPage = () => {
       <div className="bg-white rounded shadow overflow-x-auto">
         <table className="min-w-full text-sm table-fixed">
           <colgroup>
-            <col className="" />
+            <col className="w-1/12" />
             <col className="w-2/5" />
             <col className="w-1/6" />
             <col className="w-1/6" />
@@ -171,7 +174,11 @@ const AdminExhibitPage = () => {
               const inReview = row.status === "pending" || editingId === row.id;
               return (
                 <tr key={row.id} className="border-t">
-                  <td className="px-4 py-3 text-slate-500 font-semibold text-center">{row.sequence_no ?? "-"}</td>
+                  <td className="px-4 py-3 text-slate-500 font-semibold text-center">
+                    {yearFilter === "all"
+                      ? `${String(row.year ?? "").slice(-2) || "--"}-${row.sequence_no ?? "-"}`
+                      : row.sequence_no ?? "-"}
+                  </td>
                   <td className="px-4 py-3">
                     <div className="font-medium text-slate-800">
                       <Link className="text-blue-600 hover:underline" to={`/papers/${row.id}`} target="_blank">

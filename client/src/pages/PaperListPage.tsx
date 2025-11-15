@@ -77,6 +77,10 @@ const getBadgeTextColor = (hex?: string) => {
   return darkenHex(hex || DEFAULT_BADGE_COLOR, 0.4);
 };
 
+const currentYear = new Date().getFullYear();
+const START_YEAR = 2024;
+const fixedYears = Array.from({ length: Math.max(1, currentYear - START_YEAR + 1) }, (_, idx) => currentYear - idx);
+
 const PaperListPage = () => {
   const { token, user } = useAuth();
   const [submissions, setSubmissions] = useState<SubmissionListItem[]>([]);
@@ -89,8 +93,8 @@ const PaperListPage = () => {
   const [track, setTrack] = useState("poster");
   const [directionId, setDirectionId] = useState("all");
   const [directions, setDirections] = useState<DirectionOption[]>([]);
-  const [yearOptions, setYearOptions] = useState<number[]>([]);
-  const [selectedYear, setSelectedYear] = useState("all");
+  const [yearOptions] = useState<number[]>(fixedYears);
+  const [selectedYear, setSelectedYear] = useState(String(currentYear));
   const [exporting, setExporting] = useState(false);
   const canEditVotes = Boolean(user && (user.role === "admin" || user.role_template_can_edit_vote));
 
@@ -99,21 +103,19 @@ const PaperListPage = () => {
     if (directionId !== "all") {
       params.append("direction_id", directionId);
     }
+    if (selectedYear !== "all") {
+      params.append("year", selectedYear);
+    }
     if (sort) {
       params.append("sort", sort);
     }
-     if (selectedYear !== "all") {
-       params.append("year", selectedYear);
-     }
+    if (selectedYear !== "all") {
+      params.append("year", selectedYear);
+    }
     apiClient(`/api/submissions?${params.toString()}`)
       .then((data) => {
         const list = data.submissions as SubmissionListItem[];
         setSubmissions(list);
-        if (selectedYear === "all") {
-          const years = Array.from(new Set(list.map((item) => item.year).filter(Boolean))) as number[];
-          years.sort((a, b) => b - a);
-          setYearOptions(years);
-        }
         setShowVotes(data.showVotes);
         setCanSort(data.canSort);
       })
@@ -190,7 +192,8 @@ const PaperListPage = () => {
       const blob = await res.blob();
       const disposition = res.headers.get("Content-Disposition") || "";
       const match = disposition.match(/filename="?([^";]+)"?/i);
-      const rawName = match?.[1] || `${track}-export.csv`;
+      const yearPrefix = selectedYear === "all" ? "all" : selectedYear;
+      const rawName = match?.[1] || `${yearPrefix}-${track}-export.csv`;
       const filename = rawName.replace(/[\r\n]/g, "").replace(/[\\/:*?"<>|]/g, "_").trim();
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
@@ -282,7 +285,9 @@ const PaperListPage = () => {
           <div key={submission.id} className="px-4 py-3 hover:bg-slate-50">
             <div className="flex flex-col md:flex-row md:items-center md:space-x-4">
               <div className="flex items-center justify-center w-12 font-semibold text-lg text-slate-700">
-                {submission.sequence_no ?? "-"}
+                {selectedYear === "all"
+                  ? `${String(submission.year ?? "").slice(-2) || "--"}-${submission.sequence_no ?? "-"}`
+                  : submission.sequence_no ?? "-"}
               </div>
               <div className="flex-1 space-y-1">
                 <div className="flex items-center gap-2">

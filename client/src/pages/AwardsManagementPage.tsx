@@ -80,6 +80,10 @@ const getBadgeTextColor = (hex?: string): string => {
   return darkenHex(hex || DEFAULT_BADGE_COLOR, 0.4);
 };
 
+const currentYear = new Date().getFullYear();
+const START_YEAR = 2024;
+const fixedYears = Array.from({ length: Math.max(1, currentYear - START_YEAR + 1) }, (_, idx) => currentYear - idx);
+
 const AwardsManagementPage = () => {
   const { token, user } = useAuth();
   const trackOptions = [
@@ -94,8 +98,8 @@ const AwardsManagementPage = () => {
   const [sortBy, setSortBy] = useState<"sequence" | "id">("sequence");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
   const [track, setTrack] = useState<"poster" | "demo">("poster");
-  const [yearFilter, setYearFilter] = useState("all");
-  const [yearOptions, setYearOptions] = useState<number[]>([]);
+  const [yearFilter, setYearFilter] = useState(String(currentYear));
+  const [yearOptions] = useState<number[]>(fixedYears);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
@@ -157,11 +161,6 @@ const AwardsManagementPage = () => {
       .then((data) => {
         const list = data as AwardSubmission[];
         setSubmissions(list);
-        if (yearFilter === "all") {
-          const years = Array.from(new Set(list.map((item) => item.year).filter(Boolean))) as number[];
-          years.sort((a, b) => b - a);
-          setYearOptions(years);
-        }
       })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
@@ -298,20 +297,24 @@ const AwardsManagementPage = () => {
         <table className="min-w-full text-sm table-fixed">
           <thead>
             <tr className="text-left text-slate-500">
-              <th className="px-4 py-2 w-16">序号</th>
+              <th className="px-4 py-2 min-w-20 text-center">序号</th>
               <th className="px-4 py-2">标题</th>
-              <th className="px-4 py-2 w-20">年份</th>
-              <th className="px-4 py-2 w-32">作者</th>
+              {/* <th className="px-4 py-2 w-20">年份</th> */}
+              <th className="px-4 py-2 w-40">作者</th>
               <th className="px-4 py-2 w-32">方向</th>
               <th className="px-4 py-2 w-48">奖项 / 标签</th>
-              <th className="px-4 py-2 w-32">推荐</th>
-              <th className="px-4 py-2 w-32">操作</th>
+              <th className="px-4 py-2 min-w-20 text-center">推荐</th>
+              <th className="px-4 py-2 min-w-28 text-center">操作</th>
             </tr>
           </thead>
           <tbody>
             {submissions.map((submission) => (
               <tr key={submission.id} className="border-t">
-                <td className="px-4 py-3 text-center">{submission.sequence_no ?? "-"}</td>
+                <td className="px-4 py-3 text-center">
+                  {yearFilter === "all"
+                    ? `${String(submission.year ?? "").slice(-2) || "--"}-${submission.sequence_no ?? "-"}`
+                    : submission.sequence_no ?? "-"}
+                </td>
                 <td className="px-4 py-3">
                   <div className="font-semibold text-slate-800">
                     <Link className="text-blue-600 hover:underline" to={`/papers/${submission.id}`} target="_blank">
@@ -319,7 +322,7 @@ const AwardsManagementPage = () => {
                     </Link>
                   </div>
                 </td>
-                <td className="px-4 py-3">{submission.year || "-"}</td>
+                {/* <td className="px-4 py-3">{submission.year || "-"}</td> */}
                 <td className="px-4 py-3">{submission.authors || submission.author || "-"}</td>
                 <td className="px-4 py-3">{submission.direction || "-"}</td>
                 <td className="px-4 py-3">
@@ -327,7 +330,7 @@ const AwardsManagementPage = () => {
                     const awardBadges = submission.award_badges || [];
                     const hasRecommendation = submission.award_tags?.includes("推荐");
                     return (
-                      <div className="flex flex-wrap">
+                      <div className="flex flex-wrap ">
                         {awardBadges.map((badge) => {
                           const badgeColor = badge.color || DEFAULT_BADGE_COLOR;
                           return (
@@ -356,7 +359,7 @@ const AwardsManagementPage = () => {
                     );
                   })()}
                 </td>
-                <td className="px-4 py-3">
+                <td className="px-4 py-3 text-center">
                   {submission.reviewer_tags.length > 0 ? (
                     <button className="text-blue-600 text-xs" type="button" onClick={() => setDetailTarget(submission.reviewer_tags)}>
                       {submission.reviewer_tags.length} 条推荐
@@ -365,7 +368,7 @@ const AwardsManagementPage = () => {
                     <span className="text-xs text-slate-400">暂无</span>
                   )}
                 </td>
-                <td className="px-4 py-3">
+                <td className="px-4 py-3 text-center">
                   {isReviewer ? (
                     <button
                       className="px-3 py-1 border rounded text-xs"
@@ -504,13 +507,13 @@ const RecommendationModal = ({
           />
         </div>
         <div>
-          <label className="block text-sm font-medium">Confidence（0-100，可选）</label>
+          <label className="block text-sm font-medium">Confidence（0-5）</label>
           <input
             type="number"
             className="mt-1 w-full border rounded px-3 py-2"
             value={confidence}
             onChange={(e) => setConfidence(e.target.value)}
-            placeholder="例如 95"
+            placeholder="例如 3"
             min={0}
             max={100}
           />
