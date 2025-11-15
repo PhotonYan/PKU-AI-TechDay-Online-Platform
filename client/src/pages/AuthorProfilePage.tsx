@@ -106,18 +106,12 @@ const AuthorProfilePage = () => {
           <table className="min-w-full text-sm">
             <thead>
               <tr className="text-left">
-                {[
-                  "标题",
-                  "方向",
-                  "Track",
-                  "状态",
-                  "投稿状态",
-                  "操作",
-                ].map((header) => (
-                  <th key={header} className="px-3 py-2 text-slate-500 font-medium">
-                    {header}
-                  </th>
-                ))}
+                <th className="px-3 py-2 text-slate-500 font-medium">标题</th>
+                <th className="px-3 py-2 text-slate-500 font-medium min-w-[200px]">方向</th>
+                <th className="px-3 py-2 text-slate-500 font-medium min-w-[140px]">Track</th>
+                <th className="px-3 py-2 text-slate-500 font-medium min-w-[80px]">状态</th>
+                <th className="px-3 py-2 text-slate-500 font-medium min-w-[80px]">投稿状态</th>
+                <th className="px-3 py-2 text-slate-500 font-medium min-w-[100px]">操作</th>
               </tr>
             </thead>
             <tbody>

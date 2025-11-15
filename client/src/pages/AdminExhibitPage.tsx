@@ -116,21 +116,31 @@ const AdminExhibitPage = () => {
       {error && <div className="bg-red-50 text-red-600 px-3 py-2 rounded text-sm">{error}</div>}
       {info && <div className="bg-emerald-50 text-emerald-700 px-3 py-2 rounded text-sm">{info}</div>}
       <div className="bg-white rounded shadow overflow-x-auto">
-        <table className="min-w-full text-sm">
+        <table className="min-w-full text-sm table-fixed">
+          <colgroup>
+            <col className="" />
+            <col className="w-2/5" />
+            <col className="w-1/6" />
+            <col className="w-1/6" />
+            <col className="w-1/7" />
+            <col className="w-1/12" />
+            <col className="w-40" />
+          </colgroup>
           <thead>
             <tr className="text-left text-slate-500">
+              <th className="px-4 py-2"></th>
               {[
                 "标题",
                 "方向",
                 "作者",
-                "接受会议/期刊",
-                "状态",
-                "操作",
               ].map((header) => (
                 <th key={header} className="px-4 py-2">
                   {header}
                 </th>
               ))}
+              <th className="px-4 py-2 whitespace-nowrap">接受会议/期刊</th>
+              <th className="px-4 py-2 whitespace-nowrap">状态</th>
+              <th className="px-4 py-2 whitespace-nowrap">操作</th>
             </tr>
           </thead>
           <tbody>
@@ -138,9 +148,9 @@ const AdminExhibitPage = () => {
               const inReview = row.status === "pending" || editingId === row.id;
               return (
                 <tr key={row.id} className="border-t">
+                  <td className="px-4 py-3 text-slate-500 font-semibold text-center">{row.sequence_no ?? "-"}</td>
                   <td className="px-4 py-3">
-                    <div className="font-medium text-slate-800 flex items-center gap-2">
-                      <span className="text-slate-400 text-sm">{row.sequence_no ?? "-"}</span>
+                    <div className="font-medium text-slate-800">
                       <Link className="text-blue-600 hover:underline" to={`/papers/${row.id}`} target="_blank">
                         {row.title}
                       </Link>
@@ -153,11 +163,19 @@ const AdminExhibitPage = () => {
                   <td className="px-4 py-3">{row.author || "-"}</td>
                   <td className="px-4 py-3">{row.venue}</td>
                   <td className="px-4 py-3">
-                    <span className="px-2 py-0.5 rounded text-xs bg-slate-100 text-slate-700">
+                    <span
+                      className={`px-2 py-0.5 rounded text-xs ${
+                        row.status === "approved"
+                          ? "bg-emerald-100 text-emerald-700"
+                          : row.status === "rejected"
+                          ? "bg-red-100 text-red-700"
+                          : "bg-slate-100 text-slate-700"
+                      }`}
+                    >
                       {statusLabels[row.status] || row.status}
                     </span>
                   </td>
-                  <td className="px-4 py-3 space-x-2">
+                  <td className="px-4 py-3 space-x-2 whitespace-nowrap">
                     {inReview ? (
                       <>
                         <button

@@ -134,8 +134,9 @@ const PaperListPage = () => {
       }
       const blob = await res.blob();
       const disposition = res.headers.get("Content-Disposition") || "";
-      const match = disposition.match(/filename="?(.*)"?/i);
-      const filename = match?.[1] || `${track}-export.csv`;
+      const match = disposition.match(/filename="?([^";]+)"?/i);
+      const rawName = match?.[1] || `${track}-export.csv`;
+      const filename = rawName.replace(/[\r\n]/g, "").replace(/[\\/:*?"<>|]/g, "_").trim();
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
