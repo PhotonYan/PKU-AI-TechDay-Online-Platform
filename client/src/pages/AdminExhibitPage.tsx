@@ -9,11 +9,13 @@ interface AdminSubmissionRow {
   title: string;
   direction?: string | null;
   author?: string | null;
+  authors?: string | null;
   venue: string;
   status: string;
   track: string;
   publication_status: string;
   award?: string | null;
+  year?: number | null;
 }
 
 const trackOptions = [
@@ -35,20 +37,33 @@ const AdminExhibitPage = () => {
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
+  const [yearFilter, setYearFilter] = useState("all");
+  const [yearOptions, setYearOptions] = useState<number[]>([]);
 
   const loadRows = () => {
     if (!token) return;
     setLoading(true);
     setError(null);
-    apiClient(`/api/admin/submissions?track=${track}`, { token })
-      .then((data) => setRows(data as AdminSubmissionRow[]))
+    const params = new URLSearchParams();
+    if (track) params.set("track", track);
+    if (yearFilter !== "all") params.set("year", yearFilter);
+    apiClient(`/api/admin/submissions?${params.toString()}`, { token })
+      .then((data) => {
+        const list = data as AdminSubmissionRow[];
+        setRows(list);
+        if (yearFilter === "all") {
+          const years = Array.from(new Set(list.map((item) => item.year).filter(Boolean))) as number[];
+          years.sort((a, b) => b - a);
+          setYearOptions(years);
+        }
+      })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
   };
 
   useEffect(() => {
     loadRows();
-  }, [token, track]);
+  }, [token, track, yearFilter]);
 
   useEffect(() => {
     if (!info) return;
@@ -108,6 +123,14 @@ const AdminExhibitPage = () => {
               </option>
             ))}
           </select>
+          <select className="border rounded px-3 py-2" value={yearFilter} onChange={(e) => setYearFilter(e.target.value)}>
+            <option value="all">全部年份</option>
+            {yearOptions.map((year) => (
+              <option key={year} value={String(year)}>
+                {year}
+              </option>
+            ))}
+          </select>
           <button className="px-3 py-2 border rounded text-sm" type="button" onClick={renumber}>
             重新编号
           </button>
@@ -155,12 +178,13 @@ const AdminExhibitPage = () => {
                         {row.title}
                       </Link>
                     </div>
-                    <div className="text-xs text-slate-500">
-                      {trackOptions.find((opt) => opt.key === row.track)?.label}
+                    <div className="text-xs text-slate-500 flex flex-wrap gap-2">
+                      <span>{trackOptions.find((opt) => opt.key === row.track)?.label}</span>
+                      {row.year && <span>年份：{row.year}</span>}
                     </div>
                   </td>
                   <td className="px-4 py-3">{row.direction || "未分类"}</td>
-                  <td className="px-4 py-3">{row.author || "-"}</td>
+                  <td className="px-4 py-3">{row.authors || row.author || "-"}</td>
                   <td className="px-4 py-3">{row.venue}</td>
                   <td className="px-4 py-3">
                     <span

@@ -91,3 +91,15 @@ Compose 方案包含 `backend` + `frontend`(nginx) + `postgres`。访问 `http:/
 
 ---
 这就是最新的“科技节在线平台”说明。如需具体接口说明或部署脚本，请结合 `docs/ARCHITECTURE.md` 与源码查看。*** End Patch
+
+
+  Frontmatter 写法
+
+  visibility:
+    - volunteer       # 限志愿者
+    - admin           # 允许管理员
+  # 其它可选值：public, authenticated, author, reviewer
+
+  - 缺省或包含 public → 所有人可见
+  - 仅写 authenticated → 任何登录用户可见
+  - 写角色数组 → 只对列出的角色开放

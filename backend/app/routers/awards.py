@@ -90,6 +90,7 @@ def _load_submissions_for_awards(
     direction_ids: Optional[List[int]],
     current_user: models.User,
     track: models.SubmissionTrack,
+    year: Optional[int],
 ) -> Sequence[models.Submission]:
     query = (
         db.query(models.Submission)
@@ -106,6 +107,8 @@ def _load_submissions_for_awards(
         query = query.filter(models.Submission.direction_id == current_user.reviewer_direction_id)
     elif direction_ids:
         query = query.filter(models.Submission.direction_id.in_(direction_ids))
+    if year:
+        query = query.filter(models.Submission.year == year)
     return query.order_by(models.Submission.sequence_no.asc(), models.Submission.id.asc()).all()
 
 
@@ -155,6 +158,7 @@ def list_award_submissions(
     sort_by: str = Query("sequence", regex="^(sequence|id)$"),
     sort_order: str = Query("asc", regex="^(asc|desc)$"),
     track: models.SubmissionTrack = Query(models.SubmissionTrack.poster),
+    year: Optional[int] = Query(None),
     db: Session = Depends(get_db),
     current_user: models.User = Depends(require_admin_or_reviewer),
 ):
@@ -164,7 +168,7 @@ def list_award_submissions(
             direction_list = [int(item) for item in direction_ids.split(",") if item]
         except ValueError:
             raise HTTPException(status_code=400, detail="方向筛选参数不合法")
-    submissions = list(_load_submissions_for_awards(db, direction_list, current_user, track))
+    submissions = list(_load_submissions_for_awards(db, direction_list, current_user, track, year))
     status_set: set[str] = set()
     if status:
         status_set = {item for item in status.split(",") if item}
@@ -187,6 +191,8 @@ def list_award_submissions(
                 direction=submission.direction.name if submission.direction else None,
                 direction_id=submission.direction_id,
                 author=submission.author.name if submission.author else None,
+                authors=submission.authors,
+                year=submission.year,
                 award_tags=compute_award_tags(submission),
                 award_badges=[
                     schemas.SubmissionAwardTag(
@@ -337,6 +343,8 @@ def assign_awards(
         direction=submission.direction.name if submission.direction else None,
         direction_id=submission.direction_id,
         author=submission.author.name if submission.author else None,
+        authors=submission.authors,
+        year=submission.year,
         award_tags=compute_award_tags(submission),
         award_badges=[
             schemas.SubmissionAwardTag(name=record.award.name, color=record.award.color if record.award else None)

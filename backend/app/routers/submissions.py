@@ -33,6 +33,7 @@ def list_submissions(
     track: models.SubmissionTrack = models.SubmissionTrack.poster,
     direction_id: Optional[int] = None,
     sort: Optional[str] = None,
+    year: Optional[int] = None,
     db: Session = Depends(get_db),
 ):
     show_votes, can_sort, visible_awards = _site_settings(db)
@@ -49,6 +50,8 @@ def list_submissions(
     )
     if direction_id:
         query = query.filter(models.Submission.direction_id == direction_id)
+    if year:
+        query = query.filter(models.Submission.year == year)
     allowed_sort = {"vote_innovation", "vote_impact", "vote_feasibility"}
     if show_votes and can_sort and sort in allowed_sort:
         query = query.order_by(getattr(models.Submission, sort).desc())
@@ -64,6 +67,7 @@ def list_submissions(
             "direction": submission.direction.name if submission.direction else None,
             "direction_id": submission.direction_id,
             "author": submission.author.name if submission.author else "-",
+            "authors": submission.authors,
             "venue": submission.venue,
             "status": submission.review_status.value,
             "track": submission.track.value,
@@ -74,6 +78,7 @@ def list_submissions(
             "award_tags": compute_award_tags(submission, visible_awards),
             "award_badges": compute_award_badges(submission, visible_awards),
             "publication_status": submission.publication_status.value,
+            "year": submission.year,
         }
         if show_votes:
             item.update(
@@ -96,6 +101,7 @@ def list_submissions(
 def export_submissions(
     track: models.SubmissionTrack = models.SubmissionTrack.poster,
     direction_id: Optional[int] = None,
+    year: Optional[int] = None,
     db: Session = Depends(get_db),
     admin: models.User = Depends(require_admin),
 ):
@@ -109,6 +115,8 @@ def export_submissions(
         query = query.filter(models.Submission.direction_id == direction_id)
         direction = db.query(models.Direction).filter(models.Direction.id == direction_id).first()
         direction_name = direction.name if direction else "all"
+    if year:
+        query = query.filter(models.Submission.year == year)
     rows = query.all()
     output = io.StringIO()
     writer = csv.writer(output)
@@ -117,6 +125,8 @@ def export_submissions(
             "title",
             "direction",
             "author",
+            "authors",
+            "year",
             "venue",
             "status",
             "track",
@@ -132,6 +142,8 @@ def export_submissions(
                 submission.title,
                 submission.direction.name if submission.direction else "",
                 submission.author.name if submission.author else "",
+                submission.authors or "",
+                submission.year or "",
                 submission.venue,
                 submission.review_status.value,
                 submission.track.value,
@@ -197,6 +209,7 @@ def get_submission(
         "direction_id": submission.direction_id,
         "contact": submission.contact,
         "venue": submission.venue,
+        "authors": submission.authors,
         "track": submission.track.value,
         "status": submission.review_status.value,
         "publication_status": submission.publication_status.value,
@@ -207,6 +220,7 @@ def get_submission(
         "award_tags": compute_award_tags(submission, visible_awards),
         "award_badges": compute_award_badges(submission, visible_awards),
         "author": submission.author.name if submission.author else None,
+        "year": submission.year,
         "showVotes": show_votes,
         "canViewLogs": can_view_logs,
     }

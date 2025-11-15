@@ -19,10 +19,12 @@ from .routers import (
     directions,
     reviewers,
     awards,
+    posts,
 )
 
 settings = get_settings()
 Path(settings.upload_dir).mkdir(parents=True, exist_ok=True)
+Path(settings.posts_dir).mkdir(parents=True, exist_ok=True)
 
 app = FastAPI(title=settings.project_name)
 
@@ -43,6 +45,7 @@ app.include_router(directions.router)
 app.include_router(admin.router)
 app.include_router(reviewers.router)
 app.include_router(awards.router)
+app.include_router(posts.router)
 
 app.mount("/uploads", StaticFiles(directory=settings.upload_dir), name="uploads")
 
@@ -74,6 +77,7 @@ def startup_event():
         dialect = engine.dialect.name
         bool_def = "BOOLEAN DEFAULT 0" if dialect == "sqlite" else "BOOLEAN DEFAULT FALSE"
         ensure_column(db, "users", "vote_counter_opt_in", bool_def)
+        ensure_column(db, "users", "can_publish_news", bool_def)
         ensure_column(db, "users", "student_id", "VARCHAR")
         ensure_column(db, "users", "assigned_tracks", "VARCHAR")
         ensure_column(db, "users", "school", "VARCHAR")
@@ -83,6 +87,8 @@ def startup_event():
         ensure_column(db, "awards", "color", "VARCHAR")
         ensure_column(db, "site_settings", "visible_award_ids", "VARCHAR")
         ensure_column(db, "submissions", "sequence_no", "INTEGER")
+        ensure_column(db, "submissions", "authors", "TEXT")
+        ensure_column(db, "submissions", "year", "INTEGER")
         admin_user = db.query(models.User).filter(models.User.email == settings.admin_email).first()
         if not admin_user:
             admin_user = models.User(

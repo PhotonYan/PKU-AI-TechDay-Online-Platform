@@ -75,4 +75,5 @@ def user_to_response(user: models.User, db: Session) -> schemas.UserResponse:
         organizations_detail=organizations_payload,
         reviewer_direction_id=user.reviewer_direction_id,
         reviewer_direction_name=reviewer_direction_name,
+        can_publish_news=getattr(user, "can_publish_news", False),
     )

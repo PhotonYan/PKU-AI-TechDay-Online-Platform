@@ -8,6 +8,7 @@ export interface AuthUser {
   email: string;
   name: string;
   role: Role;
+  can_publish_news?: boolean;
   school?: string | null;
   organization?: string | null;
   responsibility?: string | null;

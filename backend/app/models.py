@@ -89,6 +89,7 @@ class User(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     reviewer_direction_id = Column(Integer, ForeignKey("directions.id"), nullable=True)
     reviewer_invite_id = Column(Integer, ForeignKey("reviewer_invites.id"), nullable=True, unique=True)
+    can_publish_news = Column(Boolean, default=False)
 
     organization = relationship("Organization", back_populates="users")
     role_template = relationship("RoleTemplate", back_populates="users")
@@ -147,6 +148,8 @@ class Submission(Base):
     award = Column(String, nullable=True)
     direction_id = Column(Integer, ForeignKey("directions.id"), nullable=True)
     author_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    authors = Column(Text, nullable=True)
+    year = Column(Integer, nullable=True, default=lambda: datetime.utcnow().year)
     vote_innovation = Column(Float, default=0)
     vote_impact = Column(Float, default=0)
     vote_feasibility = Column(Float, default=0)

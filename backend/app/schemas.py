@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 
 from .models import (
     ReimbursementStatus,
@@ -45,6 +45,7 @@ class UserBase(BaseModel):
     vote_counter_opt_in: Optional[bool] = False
     role_template_can_edit_vote: Optional[bool] = False
     organizations_detail: Optional[List[OrganizationResponse]] = None
+    can_publish_news: Optional[bool] = False
 
 
 class UserCreate(BaseModel):
@@ -141,6 +142,7 @@ class SubmissionBase(BaseModel):
     direction_id: Optional[int] = None
     paper_url: Optional[str] = None
     publication_status: SubmissionPublicationStatus
+    authors: Optional[str] = None
 
 
 class SubmissionResponse(SubmissionBase):
@@ -155,6 +157,7 @@ class SubmissionResponse(SubmissionBase):
     vote_feasibility: float
     updated_at: datetime
     sequence_no: Optional[int]
+    year: Optional[int] = None
 
     class Config:
         orm_mode = True
@@ -170,6 +173,7 @@ class SubmissionListItem(BaseModel):
     title: str
     direction_name: Optional[str]
     author_name: str
+    authors: Optional[str] = None
     venue: str
     status: SubmissionReviewStatus
     track: SubmissionTrack
@@ -180,6 +184,7 @@ class SubmissionListItem(BaseModel):
     vote_innovation: Optional[float]
     vote_impact: Optional[float]
     vote_feasibility: Optional[float]
+    year: Optional[int] = None
 
 
 class SubmissionVoteUpdate(BaseModel):
@@ -243,6 +248,7 @@ class UserUpdate(BaseModel):
     role_template_id: Optional[int] = None
     role: Optional[UserRole] = None
     vote_counter_opt_in: Optional[bool] = None
+    can_publish_news: Optional[bool] = None
 
 
 class ReviewerInviteCreate(BaseModel):
@@ -318,6 +324,41 @@ class ReviewRecommendationResponse(BaseModel):
     updated_at: datetime
 
 
+class NewsPostBase(BaseModel):
+    title: str
+    date: str
+    category: Optional[str] = None
+    summary: Optional[str] = None
+    tags: Optional[List[str]] = None
+    visibility: Optional[List[str]] = None
+    published: Optional[bool] = None
+
+
+class NewsPostSummary(NewsPostBase):
+    slug: str
+    tags: List[str] = Field(default_factory=list)
+    visibility: List[str] = Field(default_factory=list)
+    author: Optional[str] = None
+    author_id: Optional[int] = None
+    published: bool = False
+
+
+class NewsPostDetail(NewsPostSummary):
+    content: str
+
+
+class NewsPostCreate(NewsPostBase):
+    content: str
+
+
+class NewsPostUpdate(NewsPostBase):
+    content: str
+
+
+class NewsPostPublish(BaseModel):
+    published: bool
+
+
 class AwardAssignmentRequest(BaseModel):
     award_ids: List[int]
 
@@ -334,6 +375,8 @@ class AwardedSubmissionResponse(BaseModel):
     direction: Optional[str]
     direction_id: Optional[int]
     author: Optional[str]
+    authors: Optional[str] = None
+    year: Optional[int] = None
     award_tags: List[str]
     award_badges: List[SubmissionAwardTag]
     reviewer_tags: List[ReviewRecommendationResponse]

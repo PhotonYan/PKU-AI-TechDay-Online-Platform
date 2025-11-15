@@ -45,6 +45,7 @@ def list_users(db: Session = Depends(get_db), admin: models.User = Depends(requi
                 "vote_counter_opt_in": user.vote_counter_opt_in,
                 "volunteer_tracks": tracks,
                 "assigned_tracks": assigned_tracks,
+                "can_publish_news": bool(getattr(user, "can_publish_news", False)),
             }
         )
     return result
@@ -95,6 +96,8 @@ def update_user(
         user.role = payload.role
     if "vote_counter_opt_in" in payload_data:
         user.vote_counter_opt_in = bool(payload.vote_counter_opt_in)
+    if "can_publish_news" in payload_data:
+        user.can_publish_news = bool(payload.can_publish_news)
     db.add(user)
     db.commit()
     return {"status": "ok"}
@@ -305,6 +308,7 @@ def update_vote_settings(
 def admin_list_submissions(
     track: Optional[models.SubmissionTrack] = None,
     status: Optional[models.SubmissionReviewStatus] = None,
+    year: Optional[int] = None,
     db: Session = Depends(get_db),
     admin: models.User = Depends(require_admin),
 ):
@@ -313,6 +317,8 @@ def admin_list_submissions(
         query = query.filter(models.Submission.track == track)
     if status:
         query = query.filter(models.Submission.review_status == status)
+    if year:
+        query = query.filter(models.Submission.year == year)
     rows = query.order_by(models.Submission.created_at.desc()).all()
     data = []
     for submission in rows:
@@ -324,11 +330,13 @@ def admin_list_submissions(
                 "direction": submission.direction.name if submission.direction else None,
                 "direction_id": submission.direction_id,
                 "author": submission.author.name if submission.author else None,
+                "authors": submission.authors,
                 "venue": submission.venue,
                 "status": submission.review_status.value,
                 "track": submission.track.value,
                 "publication_status": submission.publication_status.value,
                 "award": submission.award,
+                "year": submission.year,
             }
         )
     return data

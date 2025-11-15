@@ -111,3 +111,9 @@ def require_admin_or_reviewer(user: models.User = Depends(get_current_user)) -> 
     if user.role == models.UserRole.reviewer and not user.reviewer_direction_id:
         raise HTTPException(status_code=400, detail="未设置审阅方向")
     return user
+
+
+def require_news_publisher(user: models.User = Depends(get_current_user)) -> models.User:
+    if user.role == models.UserRole.admin or getattr(user, "can_publish_news", False):
+        return user
+    raise HTTPException(status_code=403, detail="需要新闻发布权限")

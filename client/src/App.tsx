@@ -1,4 +1,4 @@
-import { Link, Navigate, Route, Routes } from "react-router-dom";
+import { Link, Navigate, NavLink, Route, Routes } from "react-router-dom";
 import { useAuth } from "./context/AuthContext";
 import LoginPage from "./pages/LoginPage";
 import PaperListPage from "./pages/PaperListPage";
@@ -14,6 +14,10 @@ import AdminExhibitPage from "./pages/AdminExhibitPage";
 import ReviewerRegisterPage from "./pages/ReviewerRegisterPage";
 import AwardsManagementPage from "./pages/AwardsManagementPage";
 import AdminDatabasePage from "./pages/AdminDatabasePage";
+import NewsListPage from "./pages/NewsListPage";
+import NewsDetailPage from "./pages/NewsDetailPage";
+import NewsManagementPage from "./pages/NewsManagementPage";
+import NewsEditorPage from "./pages/NewsEditorPage";
 
 const RequireAuth = ({ children, roles }: { children: JSX.Element; roles?: string[] }) => {
   const { token, user } = useAuth();
@@ -34,6 +38,13 @@ const App = () => {
       : user?.role && ["volunteer", "admin"].includes(user.role)
       ? "/volunteer/profile"
       : null;
+  const canPublishNews = Boolean(user && (user.role === "admin" || user.can_publish_news));
+  const primaryTabClass = ({ isActive }: { isActive: boolean }) =>
+    [
+      "inline-flex items-center rounded-full px-3 py-1 text-sm font-semibold transition",
+      isActive ? "bg-blue-600 text-white shadow-sm" : "text-slate-600 hover:text-slate-900 bg-slate-100"
+    ].join(" ");
+
   return (
     <div className="min-h-screen flex flex-col">
       <header className="bg-white shadow-sm">
@@ -48,7 +59,13 @@ const App = () => {
               <span className="h-6 w-px bg-slate-300" aria-hidden="true" />
             </div>
             <nav className="space-x-4 text-sm font-medium">
-              <Link to="/">成果展示</Link>
+              <NavLink to="/" end className={primaryTabClass}>
+                成果展示
+              </NavLink>
+              <NavLink to="/news" className={primaryTabClass}>
+                新闻公告
+              </NavLink>
+              {/* {canPublishNews && <Link to="/news/manage">新闻管理</Link>} */}
               {user && ["volunteer", "admin"].includes(user.role) && <Link to="/reimbursements">报销管理</Link>}
               {user?.role === "author" && (
                 <>
@@ -98,6 +115,11 @@ const App = () => {
         <Routes>
           <Route path="/" element={<PaperListPage />} />
           <Route path="/papers/:id" element={<PaperDetailPage />} />
+          <Route path="/news" element={<NewsListPage />} />
+          <Route path="/news/:slug" element={<NewsDetailPage />} />
+          <Route path="/news/manage" element={<NewsManagementPage />} />
+          <Route path="/news/editor/new" element={<NewsEditorPage />} />
+          <Route path="/news/editor/:slug" element={<NewsEditorPage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/author/register" element={<AuthorRegisterPage />} />
           <Route path="/reviewer/register" element={<ReviewerRegisterPage />} />

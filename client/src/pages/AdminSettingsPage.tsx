@@ -31,6 +31,7 @@ interface UserRow {
   vote_counter_opt_in?: boolean;
   volunteer_tracks?: string[];
   assigned_tracks?: string[];
+  can_publish_news?: boolean;
 }
 
 interface ReviewerInvite {
@@ -198,6 +199,9 @@ const AdminSettingsPage = () => {
     }
     if (payload.vote_counter_opt_in !== undefined) {
       bodyPayload.vote_counter_opt_in = payload.vote_counter_opt_in;
+    }
+    if (payload.can_publish_news !== undefined) {
+      bodyPayload.can_publish_news = payload.can_publish_news;
     }
     if (payload.assigned_tracks !== undefined) {
       bodyPayload.assigned_tracks = payload.assigned_tracks;
@@ -755,7 +759,7 @@ const AdminSettingsPage = () => {
         <table className="min-w-full text-sm table-fixed">
           <thead>
             <tr>
-              {["姓名", "邮箱", "角色", "组织", "计票志愿者", "操作"].map((label) => (
+              {["姓名", "邮箱", "角色", "组织", "计票志愿者", "新闻发布", "操作"].map((label) => (
                 <th key={label} className="text-left px-2 py-2">
                   {label}
                 </th>
@@ -877,6 +881,19 @@ const AdminSettingsPage = () => {
                       计票
                     </button>
                   )}
+                </td>
+                <td className="px-2 py-2">
+                  <button
+                    className={`px-3 py-1 border rounded text-xs ${
+                      u.can_publish_news
+                        ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                        : "bg-white text-slate-600 border-slate-300"
+                    }`}
+                    type="button"
+                    onClick={() => updateUser(u.id, { can_publish_news: !u.can_publish_news })}
+                  >
+                    {u.can_publish_news ? "已开启" : "未开启"}
+                  </button>
                 </td>
                 <td className="px-2 py-2">
                   <button

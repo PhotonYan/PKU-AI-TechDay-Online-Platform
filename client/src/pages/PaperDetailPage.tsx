@@ -16,6 +16,8 @@ interface PaperDetail {
   sequence_no?: number | null;
   title: string;
   author?: string | null;
+  authors?: string | null;
+  year?: number | null;
   abstract: string;
   direction?: string | null;
   direction_id?: number | null;
@@ -106,8 +108,9 @@ const PaperDetailPage = () => {
         </div>
         <h1 className="text-2xl font-semibold mb-2">{paper.title}</h1>
         <div className="text-sm text-slate-600 flex flex-wrap gap-3">
-          <span>作者：{paper.author || "-"}</span>
+          <span>作者：{paper.authors || paper.author || "-"}</span>
           <span>方向：{paper.direction || "未分类"}</span>
+          {paper.year && <span>年份：{paper.year}</span>}
           <span>Track：{paper.track === "poster" ? "Poster" : "Demo"}</span>
           {paper.award_badges && paper.award_badges.length > 0 && (
             <span className="flex flex-wrap gap-1 text-amber-600">

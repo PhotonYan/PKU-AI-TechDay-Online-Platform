@@ -1,4 +1,5 @@
 import shutil
+from datetime import datetime
 from pathlib import Path
 from typing import Optional
 from uuid import uuid4
@@ -71,6 +72,8 @@ def _serialize_author_submission(submission: models.Submission) -> dict:
         "direction_id": submission.direction_id,
         "status": submission.review_status.value,
         "publication_status": submission.publication_status.value,
+        "authors": submission.authors,
+        "year": submission.year,
     }
 
 
@@ -136,6 +139,7 @@ def get_author_submission(
         "abstract": submission.abstract,
         "contact": submission.contact,
         "venue": submission.venue,
+        "authors": submission.authors,
         "track": submission.track.value,
         "direction_id": submission.direction_id,
         "publication_status": submission.publication_status.value,
@@ -151,6 +155,7 @@ def create_submission(
     abstract: str = Form(...),
     contact: str = Form(...),
     venue: str = Form(...),
+    authors: str = Form(...),
     track: models.SubmissionTrack = Form(...),
     publication_status: models.SubmissionPublicationStatus = Form(...),
     archive_consent: bool | str | None = Form(True),
@@ -167,6 +172,7 @@ def create_submission(
         abstract=abstract,
         contact=contact,
         venue=venue,
+        authors=authors,
         track=track,
         publication_status=publication_status,
         archive_consent=_bool_value(archive_consent, True),
@@ -174,6 +180,7 @@ def create_submission(
         paper_url=paper_url,
         poster_path=poster_path,
         author_id=author.id,
+        year=datetime.utcnow().year,
     )
     db.add(submission)
     db.commit()
@@ -188,6 +195,7 @@ def update_submission(
     abstract: str = Form(...),
     contact: str = Form(...),
     venue: str = Form(...),
+    authors: str = Form(...),
     track: models.SubmissionTrack = Form(...),
     publication_status: models.SubmissionPublicationStatus = Form(...),
     archive_consent: bool | str | None = Form(True),
@@ -212,6 +220,7 @@ def update_submission(
     submission.abstract = abstract
     submission.contact = contact
     submission.venue = venue
+    submission.authors = authors
     submission.track = track
     submission.publication_status = publication_status
     submission.archive_consent = _bool_value(archive_consent, True)

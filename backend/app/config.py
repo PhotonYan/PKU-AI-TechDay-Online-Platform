@@ -1,5 +1,8 @@
 import os
 from functools import lru_cache
+from pathlib import Path
+
+BASE_DIR = Path(__file__).resolve().parents[2]
 
 class Settings:
     project_name: str = "TechDay Platform"
@@ -11,6 +14,7 @@ class Settings:
     admin_email: str = os.getenv("ADMIN_EMAIL", "admin@techday.local")
     admin_password: str = os.getenv("ADMIN_PASSWORD", "AdminPass123")
     database_admin_password: str = os.getenv("DATABASE_ADMIN_PASSWORD", "admindatabase")
+    posts_dir: str = os.getenv("POSTS_DIR", str(BASE_DIR / "client" / "src" / "assets" / "posts"))
 
 @lru_cache
 def get_settings() -> Settings:

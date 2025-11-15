@@ -30,6 +30,8 @@ interface AwardSubmission {
   direction?: string | null;
   direction_id?: number | null;
   author?: string | null;
+  authors?: string | null;
+  year?: number | null;
   award_tags: string[];
   award_badges: { name: string; color?: string | null }[];
   reviewer_tags: Recommendation[];
@@ -92,6 +94,8 @@ const AwardsManagementPage = () => {
   const [sortBy, setSortBy] = useState<"sequence" | "id">("sequence");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
   const [track, setTrack] = useState<"poster" | "demo">("poster");
+  const [yearFilter, setYearFilter] = useState("all");
+  const [yearOptions, setYearOptions] = useState<number[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
@@ -124,7 +128,7 @@ const AwardsManagementPage = () => {
   useEffect(() => {
     if (!token) return;
     loadSubmissions();
-  }, [token, statusFilters, directionFilters, sortBy, sortOrder, user?.role, track]);
+  }, [token, statusFilters, directionFilters, sortBy, sortOrder, user?.role, track, yearFilter]);
 
   useEffect(() => {
     if (!info) return;
@@ -146,8 +150,19 @@ const AwardsManagementPage = () => {
     params.set("sort_by", sortBy);
     params.set("sort_order", sortOrder);
     params.set("track", track);
+    if (yearFilter !== "all") {
+      params.set("year", yearFilter);
+    }
     apiClient(`/api/awards/submissions?${params.toString()}`, { token })
-      .then((data) => setSubmissions(data as AwardSubmission[]))
+      .then((data) => {
+        const list = data as AwardSubmission[];
+        setSubmissions(list);
+        if (yearFilter === "all") {
+          const years = Array.from(new Set(list.map((item) => item.year).filter(Boolean))) as number[];
+          years.sort((a, b) => b - a);
+          setYearOptions(years);
+        }
+      })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
   };
@@ -204,6 +219,18 @@ const AwardsManagementPage = () => {
               {option.label}
             </button>
           ))}
+          <select
+            className="border rounded px-3 py-2 text-sm"
+            value={yearFilter}
+            onChange={(e) => setYearFilter(e.target.value)}
+          >
+            <option value="all">全部年份</option>
+            {yearOptions.map((year) => (
+              <option key={year} value={String(year)}>
+                {year}
+              </option>
+            ))}
+          </select>
           <select
             className="border rounded px-3 py-2 text-sm"
             value={sortBy}
@@ -273,6 +300,7 @@ const AwardsManagementPage = () => {
             <tr className="text-left text-slate-500">
               <th className="px-4 py-2 w-16">序号</th>
               <th className="px-4 py-2">标题</th>
+              <th className="px-4 py-2 w-20">年份</th>
               <th className="px-4 py-2 w-32">作者</th>
               <th className="px-4 py-2 w-32">方向</th>
               <th className="px-4 py-2 w-48">奖项 / 标签</th>
@@ -291,7 +319,8 @@ const AwardsManagementPage = () => {
                     </Link>
                   </div>
                 </td>
-                <td className="px-4 py-3">{submission.author || "-"}</td>
+                <td className="px-4 py-3">{submission.year || "-"}</td>
+                <td className="px-4 py-3">{submission.authors || submission.author || "-"}</td>
                 <td className="px-4 py-3">{submission.direction || "-"}</td>
                 <td className="px-4 py-3">
                   {(() => {

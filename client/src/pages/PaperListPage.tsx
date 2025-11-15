@@ -8,6 +8,7 @@ interface SubmissionListItem {
   sequence_no?: number | null;
   title: string;
   author: string;
+  authors?: string | null;
   direction?: string | null;
   direction_id?: number | null;
   venue: string;
@@ -22,6 +23,7 @@ interface SubmissionListItem {
   vote_innovation?: number;
   vote_impact?: number;
   vote_feasibility?: number;
+  year?: number | null;
 }
 
 interface DirectionOption {
@@ -87,6 +89,8 @@ const PaperListPage = () => {
   const [track, setTrack] = useState("poster");
   const [directionId, setDirectionId] = useState("all");
   const [directions, setDirections] = useState<DirectionOption[]>([]);
+  const [yearOptions, setYearOptions] = useState<number[]>([]);
+  const [selectedYear, setSelectedYear] = useState("all");
   const [exporting, setExporting] = useState(false);
   const canEditVotes = Boolean(user && (user.role === "admin" || user.role_template_can_edit_vote));
 
@@ -98,9 +102,18 @@ const PaperListPage = () => {
     if (sort) {
       params.append("sort", sort);
     }
+     if (selectedYear !== "all") {
+       params.append("year", selectedYear);
+     }
     apiClient(`/api/submissions?${params.toString()}`)
       .then((data) => {
-        setSubmissions(data.submissions);
+        const list = data.submissions as SubmissionListItem[];
+        setSubmissions(list);
+        if (selectedYear === "all") {
+          const years = Array.from(new Set(list.map((item) => item.year).filter(Boolean))) as number[];
+          years.sort((a, b) => b - a);
+          setYearOptions(years);
+        }
         setShowVotes(data.showVotes);
         setCanSort(data.canSort);
       })
@@ -115,7 +128,7 @@ const PaperListPage = () => {
 
   useEffect(() => {
     loadSubmissions();
-  }, [sort, track, directionId]);
+  }, [sort, track, directionId, selectedYear]);
 
   const handleVoteInputChange = (paperId: number, value: string) => {
     setVoteInputs((prev) => ({ ...prev, [paperId]: value }));
@@ -198,7 +211,14 @@ const PaperListPage = () => {
     <div>
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between mb-4">
         <div>
-          <h1 className="text-2xl font-semibold">成果展示</h1>
+          <header>
+          <p className="text-sm font-semibold text-blue-600 uppercase tracking-wider">Table of works</p>
+          <h1 className="mt-2 text-3xl font-bold text-slate-900">成果展示</h1>
+          <p className="mt-1 text-slate-600">
+            本届科技节所有Poster、Demo列表与详细信息。
+          </p>
+          </header>
+          <div className="my-8"></div>
           <div className="mt-2 flex flex-wrap gap-2 text-sm">
             {["poster", "demo"].map((key) => (
               <button
@@ -210,18 +230,32 @@ const PaperListPage = () => {
                 {key === "poster" ? "Poster Track" : "Demo Track"}
               </button>
             ))}
-            <select
-              className="border rounded px-3 py-1 text-xs"
-              value={directionId}
-              onChange={(e) => setDirectionId(e.target.value)}
-            >
-              <option value="all">全部方向</option>
-              {directions.map((direction) => (
-                <option key={direction.id} value={direction.id}>
-                  {direction.name}
-                </option>
-              ))}
-            </select>
+            <div className="flex flex-wrap items-center gap-2">
+              <select
+                className="border rounded px-3 py-1 text-xs"
+                value={directionId}
+                onChange={(e) => setDirectionId(e.target.value)}
+              >
+                <option value="all">全部方向</option>
+                {directions.map((direction) => (
+                  <option key={direction.id} value={direction.id}>
+                    {direction.name}
+                  </option>
+                ))}
+              </select>
+              <select
+                className="border rounded px-3 py-1 text-xs"
+                value={selectedYear}
+                onChange={(e) => setSelectedYear(e.target.value)}
+              >
+                <option value="all">全部年份</option>
+                {yearOptions.map((year) => (
+                  <option key={year} value={String(year)}>
+                    {year}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -272,8 +306,10 @@ const PaperListPage = () => {
                     );
                   })}
                 </div>
-                <div className="text-sm text-slate-600">
-                  作者：{submission.author} · 方向：{submission.direction || "未分类"}
+                <div className="text-sm text-slate-600 flex flex-wrap gap-2">
+                  <span>作者：{submission.authors || submission.author || "-"}</span>
+                  <span>方向：{submission.direction || "未分类"}</span>
+                  {submission.year && <span>年份：{submission.year}</span>}
                 </div>
                 <div className="text-xs text-slate-400">{submission.venue}</div>
               </div>

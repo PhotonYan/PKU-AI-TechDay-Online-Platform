@@ -23,6 +23,7 @@ const defaultForm = {
   abstract: "",
   contact: "",
   venue: "",
+  authors: "",
   track: "poster",
   direction_id: "",
   publication_status: "accepted",
@@ -69,6 +70,7 @@ const AuthorSubmissionFormPage = () => {
           abstract: data.abstract,
           contact: data.contact,
           venue: data.venue,
+          authors: data.authors || "",
           track: data.track,
           direction_id: data.direction_id ? String(data.direction_id) : "",
           publication_status: data.publication_status,
@@ -139,6 +141,16 @@ const AuthorSubmissionFormPage = () => {
               className="mt-1 border rounded px-3 py-2 w-full"
               value={form.venue}
               onChange={(e) => setForm({ ...form, venue: e.target.value })}
+              required
+            />
+          </div>
+          <div>
+            <label className="text-sm font-medium">作者（多位请用逗号分隔）</label>
+            <input
+              className="mt-1 border rounded px-3 py-2 w-full"
+              value={form.authors}
+              onChange={(e) => setForm({ ...form, authors: e.target.value })}
+              placeholder="Author A, Author B, ..."
               required
             />
           </div>
