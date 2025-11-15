@@ -1,14 +1,27 @@
+import csv
+import io
 import secrets
 import string
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, Depends, HTTPException, Response, Header, UploadFile, File, Form
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from .. import models, schemas
+from ..config import get_settings
 from ..dependencies import get_db, require_admin
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
+settings = get_settings()
+
+
+def require_database_password_header(
+    password: str = Header(..., alias="X-Database-Password"),
+) -> str:
+    if password != settings.database_admin_password:
+        raise HTTPException(status_code=403, detail="数据库密码错误")
+    return password
 
 
 @router.get("/users")
@@ -393,6 +406,225 @@ def admin_renumber_submissions(
         db.add(submission)
     db.commit()
     return {"status": "ok", "renumbered": len(approved)}
+
+
+@router.post("/database/login")
+def database_admin_login(
+    payload: schemas.DatabaseLoginRequest,
+    admin: models.User = Depends(require_admin),
+):
+    if payload.password != settings.database_admin_password:
+        raise HTTPException(status_code=403, detail="数据库密码错误")
+    return {"status": "ok"}
+
+
+@router.get("/database/tables")
+def list_database_tables(
+    db: Session = Depends(get_db),
+    admin: models.User = Depends(require_admin),
+    _password: str = Depends(require_database_password_header),
+):
+    tables = _fetch_table_names(db)
+    return {"tables": tables}
+
+
+@router.get("/database/tables/{table_name}")
+def get_database_table(
+    table_name: str,
+    limit: int = 200,
+    db: Session = Depends(get_db),
+    admin: models.User = Depends(require_admin),
+    _password: str = Depends(require_database_password_header),
+):
+    if limit <= 0:
+        limit = 200
+    _ensure_table_exists(db, table_name)
+    safe_name = _sanitize_table_name(table_name)
+    columns = _get_table_columns(db, safe_name)
+    rows = db.execute(text(f'SELECT * FROM "{safe_name}" LIMIT :limit'), {"limit": limit}).mappings().all()
+    primary_key = next((col["name"] for col in columns if col["pk"]), None)
+    return {
+        "columns": columns,
+        "rows": [dict(row) for row in rows],
+        "primary_key": primary_key,
+    }
+
+
+@router.put("/database/tables/{table_name}/rows/{pk_value}")
+def update_database_row(
+    table_name: str,
+    pk_value: str,
+    payload: schemas.DatabaseRowUpdate,
+    db: Session = Depends(get_db),
+    admin: models.User = Depends(require_admin),
+    _password: str = Depends(require_database_password_header),
+):
+    _ensure_table_exists(db, table_name)
+    safe_name = _sanitize_table_name(table_name)
+    columns = _get_table_columns(db, safe_name)
+    pk_columns = [col for col in columns if col["pk"]]
+    if len(pk_columns) != 1:
+        raise HTTPException(status_code=400, detail="该表没有可识别的单一主键，暂不支持编辑")
+    if not payload.data:
+        raise HTTPException(status_code=400, detail="缺少更新内容")
+    valid_columns = {col["name"] for col in columns}
+    invalid_fields = [field for field in payload.data if field not in valid_columns]
+    if invalid_fields:
+        raise HTTPException(status_code=400, detail=f"未知字段: {', '.join(invalid_fields)}")
+    set_clause = ", ".join(f'"{column}" = :{column}' for column in payload.data.keys())
+    query = text(f'UPDATE "{safe_name}" SET {set_clause} WHERE "{pk_columns[0]["name"]}" = :_pk_value')
+    params = {**payload.data, "_pk_value": pk_value}
+    result = db.execute(query, params)
+    if result.rowcount == 0:
+        raise HTTPException(status_code=404, detail="记录不存在或未修改")
+    db.commit()
+    return {"status": "updated"}
+
+
+@router.post("/database/tables/{table_name}/rows")
+def create_database_row(
+    table_name: str,
+    payload: schemas.DatabaseRowUpdate,
+    db: Session = Depends(get_db),
+    admin: models.User = Depends(require_admin),
+    _password: str = Depends(require_database_password_header),
+):
+    _ensure_table_exists(db, table_name)
+    safe_name = _sanitize_table_name(table_name)
+    columns = _get_table_columns(db, safe_name)
+    if not payload.data:
+        raise HTTPException(status_code=400, detail="缺少创建内容")
+    valid_columns = {col["name"] for col in columns}
+    invalid_fields = [field for field in payload.data if field not in valid_columns]
+    if invalid_fields:
+        raise HTTPException(status_code=400, detail=f"未知字段: {', '.join(invalid_fields)}")
+    column_names = list(payload.data.keys())
+    placeholders = ", ".join(f":{column}" for column in column_names)
+    columns_clause = ", ".join(f'"{column}"' for column in column_names)
+    query = text(f'INSERT INTO "{safe_name}" ({columns_clause}) VALUES ({placeholders})')
+    db.execute(query, payload.data)
+    db.commit()
+    return {"status": "created"}
+
+
+@router.delete("/database/tables/{table_name}/rows/{pk_value}")
+def delete_database_row(
+    table_name: str,
+    pk_value: str,
+    db: Session = Depends(get_db),
+    admin: models.User = Depends(require_admin),
+    _password: str = Depends(require_database_password_header),
+):
+    _ensure_table_exists(db, table_name)
+    safe_name = _sanitize_table_name(table_name)
+    columns = _get_table_columns(db, safe_name)
+    pk_columns = [col for col in columns if col["pk"]]
+    if len(pk_columns) != 1:
+        raise HTTPException(status_code=400, detail="该表没有可识别的单一主键，暂不支持删除")
+    query = text(f'DELETE FROM "{safe_name}" WHERE "{pk_columns[0]["name"]}" = :_pk_value')
+    result = db.execute(query, {"_pk_value": pk_value})
+    if result.rowcount == 0:
+        raise HTTPException(status_code=404, detail="记录不存在")
+    db.commit()
+    return {"status": "deleted"}
+
+
+@router.delete("/database/tables/{table_name}")
+def delete_database_table(
+    table_name: str,
+    db: Session = Depends(get_db),
+    admin: models.User = Depends(require_admin),
+    _password: str = Depends(require_database_password_header),
+):
+    _ensure_table_exists(db, table_name)
+    safe_name = _sanitize_table_name(table_name)
+    db.execute(text(f'DROP TABLE "{safe_name}"'))
+    db.commit()
+    return {"status": "deleted"}
+
+
+@router.post("/database/tables/{table_name}/import")
+def import_database_table(
+    table_name: str,
+    mode: str = Form(...),
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    admin: models.User = Depends(require_admin),
+    _password: str = Depends(require_database_password_header),
+):
+    mode = mode.lower()
+    if mode not in {"overwrite", "append"}:
+        raise HTTPException(status_code=400, detail="未知导入模式")
+    _ensure_table_exists(db, table_name)
+    safe_name = _sanitize_table_name(table_name)
+    columns = _get_table_columns(db, safe_name)
+    table_columns = [col["name"] for col in columns]
+    try:
+        raw_bytes = file.file.read()
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=400, detail="无法读取文件") from exc
+    if not raw_bytes:
+        raise HTTPException(status_code=400, detail="文件为空")
+    try:
+        decoded = raw_bytes.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        try:
+            decoded = raw_bytes.decode("utf-8")
+        except UnicodeDecodeError as exc:  # noqa: BLE001
+            raise HTTPException(status_code=400, detail="CSV 文件必须为 UTF-8 编码") from exc
+    reader = csv.DictReader(io.StringIO(decoded))
+    header = [name.strip() if name else "" for name in (reader.fieldnames or [])]
+    if not header:
+        raise HTTPException(status_code=400, detail="CSV 文件缺少表头")
+    if header != table_columns:
+        raise HTTPException(status_code=400, detail="CSV 表头与数据库表字段不匹配")
+    rows_to_insert: List[dict] = []
+    for row in reader:
+        cleaned = {}
+        for column in table_columns:
+            value = row.get(column, "")
+            cleaned[column] = None if value == "" else value
+        rows_to_insert.append(cleaned)
+    with db.begin_nested():
+        if mode == "overwrite":
+            db.execute(text(f'DELETE FROM "{safe_name}"'))
+        if rows_to_insert:
+            placeholders = ", ".join(f":{column}" for column in table_columns)
+            columns_clause = ", ".join(f'"{column}"' for column in table_columns)
+            insert_query = text(f'INSERT INTO "{safe_name}" ({columns_clause}) VALUES ({placeholders})')
+            db.execute(insert_query, rows_to_insert)
+    return {"status": "imported", "rows": len(rows_to_insert), "mode": mode}
+
+
+def _fetch_table_names(db: Session) -> List[str]:
+    rows = db.execute(
+        text("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name")
+    ).fetchall()
+    return [row[0] for row in rows]
+
+
+def _ensure_table_exists(db: Session, table_name: str) -> None:
+    tables = _fetch_table_names(db)
+    if table_name not in tables:
+        raise HTTPException(status_code=404, detail="表不存在")
+
+
+def _sanitize_table_name(table_name: str) -> str:
+    return table_name.replace('"', '""')
+
+
+def _get_table_columns(db: Session, safe_table_name: str) -> List[dict]:
+    columns_raw = db.execute(text(f'PRAGMA table_info("{safe_table_name}")')).mappings().all()
+    return [
+        {
+            "name": column["name"],
+            "type": column["type"],
+            "notnull": bool(column["notnull"]),
+            "default_value": column["dflt_value"],
+            "pk": bool(column["pk"]),
+        }
+        for column in columns_raw
+    ]
 
 
 def _normalize_code(code: str) -> str:

@@ -10,6 +10,7 @@ class Settings:
     upload_dir: str = os.getenv("UPLOAD_DIR", "uploads")
     admin_email: str = os.getenv("ADMIN_EMAIL", "admin@techday.local")
     admin_password: str = os.getenv("ADMIN_PASSWORD", "AdminPass123")
+    database_admin_password: str = os.getenv("DATABASE_ADMIN_PASSWORD", "admindatabase")
 
 @lru_cache
 def get_settings() -> Settings:

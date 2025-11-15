@@ -13,6 +13,7 @@ import AuthorSubmissionFormPage from "./pages/AuthorSubmissionFormPage";
 import AdminExhibitPage from "./pages/AdminExhibitPage";
 import ReviewerRegisterPage from "./pages/ReviewerRegisterPage";
 import AwardsManagementPage from "./pages/AwardsManagementPage";
+import AdminDatabasePage from "./pages/AdminDatabasePage";
 
 const RequireAuth = ({ children, roles }: { children: JSX.Element; roles?: string[] }) => {
   const { token, user } = useAuth();
@@ -62,6 +63,11 @@ const App = () => {
                 </>
               )}
               {user && ["admin", "reviewer"].includes(user.role) && <Link to="/awards">奖项管理</Link>}
+              {user?.role === "admin" && (
+                <>
+                  <Link to="/admin/database">数据库</Link>
+                </>
+              )}
             </nav>
           </div>
           <div className="text-sm">
@@ -149,6 +155,14 @@ const App = () => {
             element={
               <RequireAuth roles={["admin"]}>
                 <AdminExhibitPage />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/admin/database"
+            element={
+              <RequireAuth roles={["admin"]}>
+                <AdminDatabasePage />
               </RequireAuth>
             }
           />

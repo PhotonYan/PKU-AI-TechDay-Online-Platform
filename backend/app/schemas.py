@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, EmailStr
 
@@ -290,6 +290,19 @@ class AwardResponse(AwardCreate):
 
     class Config:
         orm_mode = True
+
+
+class PasswordChangeRequest(BaseModel):
+    current_password: str
+    new_password: str
+
+
+class DatabaseLoginRequest(BaseModel):
+    password: str
+
+
+class DatabaseRowUpdate(BaseModel):
+    data: Dict[str, Any]
 
 
 class ReviewRecommendationPayload(BaseModel):

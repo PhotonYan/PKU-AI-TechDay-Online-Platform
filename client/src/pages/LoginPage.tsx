@@ -6,8 +6,8 @@ const LoginPage = () => {
   const { login } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const [account, setAccount] = useState("admin@techday.local");
-  const [password, setPassword] = useState("AdminPass123");
+  const [account, setAccount] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [mode, setMode] = useState<"standard" | "reviewer">("standard");
