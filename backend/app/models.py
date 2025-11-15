@@ -126,6 +126,7 @@ class Submission(Base):
     __tablename__ = "submissions"
 
     id = Column(Integer, primary_key=True, index=True)
+    sequence_no = Column(Integer, nullable=True, index=True)
     title = Column(String, nullable=False)
     abstract = Column(Text, nullable=False)
     contact = Column(String, nullable=False)

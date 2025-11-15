@@ -5,6 +5,7 @@ import { useAuth } from "../context/AuthContext";
 
 interface SubmissionListItem {
   id: number;
+  sequence_no?: number | null;
   title: string;
   author: string;
   direction?: string | null;
@@ -203,6 +204,9 @@ const PaperListPage = () => {
         {submissions.map((submission) => (
           <div key={submission.id} className="px-4 py-3 hover:bg-slate-50">
             <div className="flex flex-col md:flex-row md:items-center md:space-x-4">
+              <div className="flex items-center justify-center w-12 font-semibold text-lg text-slate-700">
+                {submission.sequence_no ?? "-"}
+              </div>
               <div className="flex-1 space-y-1">
                 <div className="flex items-center gap-2">
                   <Link to={`/papers/${submission.id}`} className="font-semibold text-blue-700 hover:underline">

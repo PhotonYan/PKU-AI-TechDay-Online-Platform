@@ -46,6 +46,7 @@ def list_submissions(
     for submission in submissions:
         item = {
             "id": submission.id,
+            "sequence_no": submission.sequence_no,
             "title": submission.title,
             "direction": submission.direction.name if submission.direction else None,
             "direction_id": submission.direction_id,
@@ -175,6 +176,7 @@ def get_submission(
     payload = {
         "id": submission.id,
         "title": submission.title,
+        "sequence_no": submission.sequence_no,
         "abstract": submission.abstract,
         "direction": submission.direction.name if submission.direction else None,
         "direction_id": submission.direction_id,

@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { apiClient } from "../api/client";
 import { useAuth } from "../context/AuthContext";
 
 interface AdminSubmissionRow {
   id: number;
+  sequence_no?: number | null;
   title: string;
   direction?: string | null;
   author?: string | null;
@@ -31,6 +33,7 @@ const AdminExhibitPage = () => {
   const [rows, setRows] = useState<AdminSubmissionRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
 
   const loadRows = () => {
@@ -47,6 +50,12 @@ const AdminExhibitPage = () => {
     loadRows();
   }, [token, track]);
 
+  useEffect(() => {
+    if (!info) return;
+    const timer = setTimeout(() => setInfo(null), 2000);
+    return () => clearTimeout(timer);
+  }, [info]);
+
   const reviewSubmission = async (id: number, status: "approved" | "rejected") => {
     if (!token) return;
     try {
@@ -56,6 +65,7 @@ const AdminExhibitPage = () => {
         body: JSON.stringify({ review_status: status }),
       });
       setEditingId(null);
+      setInfo(status === "approved" ? "已通过审核" : "已拒绝该投稿");
       loadRows();
     } catch (err) {
       setError((err as Error).message);
@@ -68,6 +78,18 @@ const AdminExhibitPage = () => {
     try {
       await apiClient(`/api/admin/submissions/${id}`, { method: "DELETE", token });
       setEditingId((prev) => (prev === id ? null : prev));
+      setInfo("投稿已删除");
+      loadRows();
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  };
+
+  const renumber = async () => {
+    if (!token) return;
+    try {
+      await apiClient(`/api/admin/submissions/renumber?track=${track}`, { method: "POST", token });
+      setInfo("序号已重新生成");
       loadRows();
     } catch (err) {
       setError((err as Error).message);
@@ -76,17 +98,23 @@ const AdminExhibitPage = () => {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <h1 className="text-2xl font-semibold">参展管理</h1>
-        <select className="border rounded px-3 py-2" value={track} onChange={(e) => setTrack(e.target.value)}>
-          {trackOptions.map((option) => (
-            <option key={option.key} value={option.key}>
-              {option.label}
-            </option>
-          ))}
-        </select>
+        <div className="flex items-center gap-2">
+          <select className="border rounded px-3 py-2" value={track} onChange={(e) => setTrack(e.target.value)}>
+            {trackOptions.map((option) => (
+              <option key={option.key} value={option.key}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+          <button className="px-3 py-2 border rounded text-sm" type="button" onClick={renumber}>
+            重新编号
+          </button>
+        </div>
       </div>
       {error && <div className="bg-red-50 text-red-600 px-3 py-2 rounded text-sm">{error}</div>}
+      {info && <div className="bg-emerald-50 text-emerald-700 px-3 py-2 rounded text-sm">{info}</div>}
       <div className="bg-white rounded shadow overflow-x-auto">
         <table className="min-w-full text-sm">
           <thead>
@@ -111,8 +139,15 @@ const AdminExhibitPage = () => {
               return (
                 <tr key={row.id} className="border-t">
                   <td className="px-4 py-3">
-                    <div className="font-medium text-slate-800">{row.title}</div>
-                    <div className="text-xs text-slate-500">{trackOptions.find((opt) => opt.key === row.track)?.label}</div>
+                    <div className="font-medium text-slate-800 flex items-center gap-2">
+                      <span className="text-slate-400 text-sm">{row.sequence_no ?? "-"}</span>
+                      <Link className="text-blue-600 hover:underline" to={`/papers/${row.id}`} target="_blank">
+                        {row.title}
+                      </Link>
+                    </div>
+                    <div className="text-xs text-slate-500">
+                      {trackOptions.find((opt) => opt.key === row.track)?.label}
+                    </div>
                   </td>
                   <td className="px-4 py-3">{row.direction || "未分类"}</td>
                   <td className="px-4 py-3">{row.author || "-"}</td>

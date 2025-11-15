@@ -53,9 +53,9 @@ def _delete_poster(path: Optional[str]):
         abs_path.unlink()
 
 
-def _ensure_direction(db: Session, direction_id: Optional[int]) -> Optional[int]:
+def _require_direction(db: Session, direction_id: Optional[int]) -> int:
     if not direction_id:
-        return None
+        raise HTTPException(status_code=400, detail="必须选择方向")
     direction = db.query(models.Direction).filter(models.Direction.id == direction_id).first()
     if not direction:
         raise HTTPException(status_code=404, detail="方向不存在")
@@ -160,7 +160,7 @@ def create_submission(
     author: models.User = Depends(require_author),
     db: Session = Depends(get_db),
 ):
-    direction_value = _ensure_direction(db, direction_id)
+    direction_value = _require_direction(db, direction_id)
     poster_path = _save_poster(poster)
     submission = models.Submission(
         title=title,
@@ -204,7 +204,7 @@ def update_submission(
     )
     if not submission:
         raise HTTPException(status_code=404, detail="未找到投稿")
-    direction_value = _ensure_direction(db, direction_id)
+    direction_value = _require_direction(db, direction_id)
     if poster:
         _delete_poster(submission.poster_path)
         submission.poster_path = _save_poster(poster)

@@ -55,6 +55,7 @@ def startup_event():
         ensure_column(db, "users", "student_id", "VARCHAR")
         ensure_column(db, "users", "assigned_tracks", "VARCHAR")
         ensure_column(db, "users", "school", "VARCHAR")
+        ensure_column(db, "submissions", "sequence_no", "INTEGER")
         admin_user = db.query(models.User).filter(models.User.email == settings.admin_email).first()
         if not admin_user:
             admin_user = models.User(

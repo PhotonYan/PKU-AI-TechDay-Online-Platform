@@ -152,6 +152,7 @@ class SubmissionResponse(SubmissionBase):
     vote_impact: float
     vote_feasibility: float
     updated_at: datetime
+    sequence_no: Optional[int]
 
     class Config:
         orm_mode = True
@@ -163,6 +164,7 @@ class SubmissionDetailResponse(SubmissionResponse):
 
 class SubmissionListItem(BaseModel):
     id: int
+    sequence_no: Optional[int]
     title: str
     direction_name: Optional[str]
     author_name: str

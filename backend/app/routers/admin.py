@@ -293,6 +293,7 @@ def admin_list_submissions(
             {
                 "id": submission.id,
                 "title": submission.title,
+                "sequence_no": submission.sequence_no,
                 "direction": submission.direction.name if submission.direction else None,
                 "direction_id": submission.direction_id,
                 "author": submission.author.name if submission.author else None,
@@ -327,6 +328,8 @@ def admin_update_submission(
             submission.direction_id = payload.direction_id
     if "review_status" in payload_data:
         submission.review_status = payload.review_status
+        if submission.review_status != models.SubmissionReviewStatus.approved:
+            submission.sequence_no = None
     if "award" in payload_data:
         submission.award = payload.award
     if "track" in payload_data and payload.track is not None:
@@ -356,3 +359,23 @@ def admin_delete_submission(
     db.delete(submission)
     db.commit()
     return {"status": "deleted"}
+
+
+@router.post("/submissions/renumber")
+def admin_renumber_submissions(
+    track: models.SubmissionTrack,
+    db: Session = Depends(get_db),
+    admin: models.User = Depends(require_admin),
+):
+    approved = (
+        db.query(models.Submission)
+        .filter(models.Submission.track == track)
+        .filter(models.Submission.review_status == models.SubmissionReviewStatus.approved)
+        .order_by(models.Submission.created_at.asc())
+        .all()
+    )
+    for idx, submission in enumerate(approved, start=1):
+        submission.sequence_no = idx
+        db.add(submission)
+    db.commit()
+    return {"status": "ok", "renumbered": len(approved)}

@@ -13,6 +13,7 @@ interface VoteLog {
 
 interface PaperDetail {
   id: number;
+  sequence_no?: number | null;
   title: string;
   author?: string | null;
   abstract: string;
@@ -52,9 +53,15 @@ const PaperDetailPage = () => {
 
   if (!paper) return <div>加载中...</div>;
 
+  const posterSrc = paper.poster_path ? (paper.poster_path.startsWith("http") ? paper.poster_path : `/${paper.poster_path}`) : null;
+
   return (
     <div className="bg-white p-6 rounded shadow space-y-4">
       <div>
+        <div className="flex items-center gap-3 text-slate-500 text-sm mb-1">
+          <div className="font-bold text-lg text-slate-700">{paper.sequence_no ?? "-"}</div>
+          <div>编号</div>
+        </div>
         <h1 className="text-2xl font-semibold mb-2">{paper.title}</h1>
         <div className="text-sm text-slate-600 flex flex-wrap gap-3">
           <span>作者：{paper.author || "-"}</span>
@@ -65,6 +72,7 @@ const PaperDetailPage = () => {
         <div className="text-xs text-slate-500 mt-1 flex gap-3">
           <span>审核状态：{paper.status === "approved" ? "通过" : paper.status === "pending" ? "待审核" : "未通过"}</span>
           <span>投稿状态：{paper.publication_status === "published" ? "已发表" : "中稿"}</span>
+          <span className="text-slate-400">Archive：{paper.archive_consent ? "已授权" : "未授权"}</span>
         </div>
       </div>
       <div>
@@ -90,21 +98,15 @@ const PaperDetailPage = () => {
             <div>未填写</div>
           )}
         </div>
-        <div className="bg-slate-50 p-3 rounded">
-          <div className="font-medium">Poster PDF</div>
-          {paper.poster_path ? (
-            <a className="text-blue-600" href={`/${paper.poster_path}`} target="_blank" rel="noreferrer">
-              点击查看
-            </a>
-          ) : (
-            <div>未上传</div>
-          )}
-        </div>
-        <div className="bg-slate-50 p-3 rounded">
-          <div className="font-medium">Archive 授权</div>
-          <div>{paper.archive_consent ? "已授权" : "未授权"}</div>
-        </div>
       </div>
+      {posterSrc && (
+        <div className="space-y-2">
+          <div className="text-sm font-semibold text-slate-600">Poster 预览</div>
+          <div className="border rounded overflow-hidden bg-slate-50">
+            <iframe title="poster" src={posterSrc} className="w-full h-[480px]" />
+          </div>
+        </div>
+      )}
       {paper.showVotes && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           {[

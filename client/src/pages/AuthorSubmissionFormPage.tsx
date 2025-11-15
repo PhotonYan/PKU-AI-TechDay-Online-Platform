@@ -47,9 +47,18 @@ const AuthorSubmissionFormPage = () => {
 
   useEffect(() => {
     apiClient("/api/directions")
-      .then((data) => setDirections(data as DirectionOption[]))
+      .then((data) => {
+        const list = data as DirectionOption[];
+        setDirections(list);
+      })
       .catch((err) => setError(err.message));
   }, []);
+
+  useEffect(() => {
+    if (directions.length > 0 && !form.direction_id) {
+      setForm((prev) => ({ ...prev, direction_id: String(directions[0].id) }));
+    }
+  }, [directions]);
 
   useEffect(() => {
     if (!token || !isEdit || !id) return;
@@ -74,6 +83,10 @@ const AuthorSubmissionFormPage = () => {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (!token) return;
+    if (!form.direction_id) {
+      setError("请选择投稿方向");
+      return;
+    }
     setSubmitting(true);
     setError(null);
     setMessage(null);
@@ -187,13 +200,16 @@ const AuthorSubmissionFormPage = () => {
             </select>
           </div>
           <div>
-            <label className="text-sm font-medium">方向（可选）</label>
+            <label className="text-sm font-medium">方向</label>
             <select
               className="mt-1 border rounded px-3 py-2 w-full"
               value={form.direction_id}
               onChange={(e) => setForm({ ...form, direction_id: e.target.value })}
+              required
             >
-              <option value="">未选择</option>
+              <option value="" disabled>
+                请选择方向
+              </option>
               {directions.map((direction) => (
                 <option key={direction.id} value={direction.id}>
                   {direction.name}
