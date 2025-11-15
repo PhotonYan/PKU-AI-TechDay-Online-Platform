@@ -68,7 +68,7 @@ const VolunteerRegisterPage = () => {
   };
 
   return (
-    <div className="bg-white p-6 rounded shadow max-w-2xl space-y-4">
+    <div className="max-w-2xl mx-auto bg-white p-6 rounded shadow space-y-4">
       <h1 className="text-xl font-semibold">志愿者报名</h1>
       {message && <div className="bg-emerald-50 text-emerald-700 px-3 py-2 rounded text-sm">{message}</div>}
       {error && <div className="bg-red-50 text-red-700 px-3 py-2 rounded text-sm">{error}</div>}
