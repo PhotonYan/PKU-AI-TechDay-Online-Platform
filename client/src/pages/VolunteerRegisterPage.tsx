@@ -2,7 +2,7 @@ import { FormEvent, useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { apiClient } from "../api/client";
 
-const timeSlots = ["13:00", "14:00", "15:00", "16:00", "17:00"];
+const timeSlots = ["12:30-14:00", "14:00-15:00", "15:00-16:00", "16:00-17:00", "17:00-18:00"];
 
 interface Organization {
   id: number;
@@ -69,7 +69,7 @@ const VolunteerRegisterPage = () => {
 
   return (
     <div className="max-w-2xl mx-auto bg-white p-6 rounded shadow space-y-4">
-      <h1 className="text-xl font-semibold">志愿者报名</h1>
+      <h1 className="text-2xl font-semibold">志愿者报名</h1>
       {message && <div className="bg-emerald-50 text-emerald-700 px-3 py-2 rounded text-sm">{message}</div>}
       {error && <div className="bg-red-50 text-red-700 px-3 py-2 rounded text-sm">{error}</div>}
       <form className="grid gap-4" onSubmit={handleSubmit}>
@@ -112,7 +112,7 @@ const VolunteerRegisterPage = () => {
           </div>
         </div>
         <div>
-          <div className="text-sm font-medium mb-1">可服务时段（13:00-18:00）</div>
+          <div className="text-sm font-medium mb-1">可服务时段</div>
           <div className="flex flex-wrap gap-2">
             {timeSlots.map((slot) => (
               <button
